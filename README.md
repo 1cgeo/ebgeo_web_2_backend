@@ -33,7 +33,7 @@ CSRF_SECRET=outro-segredo-seguro
 PASSWORD_PEPPER=outro-segredo-seguro
 RATE_LIMIT_WINDOW_MS=900000  # 15 minutos
 RATE_LIMIT_MAX_REQUESTS=100
-COOKIE_SECURE=true  # Em produção
+COOKIE_SECURE=true
 COOKIE_SAME_SITE=strict
 ALLOWED_ORIGINS=http://localhost:3000,https://seu-frontend.com
 ```
@@ -76,6 +76,62 @@ npm start
 
 ## Endpoints
 
+### Autenticação
+```
+POST /api/auth/login
+Body: { username: string, password: string }
+Description: Autentica um usuário e retorna um token JWT
+
+POST /api/auth/logout
+Auth: Required
+Description: Realiza o logout do usuário atual
+
+GET /api/auth/api-key
+Auth: Required
+Description: Obtém a API key do usuário atual
+
+POST /api/auth/api-key/regenerate
+Auth: Required
+Description: Gera uma nova API key para o usuário
+
+GET /api/auth/api-key/history
+Auth: Required
+Description: Retorna o histórico de API keys do usuário
+
+POST /api/auth/users
+Auth: Admin Only
+Body: { username: string, password: string, email: string, role: 'admin'|'user' }
+Description: Cria um novo usuário
+
+GET /api/auth/validate-api-key
+Query: api_key ou Header: x-api-key
+Description: Valida uma API key (usado pelo nginx auth_request)
+```
+
+### Gerenciamento de Grupos
+```
+GET /api/auth/groups
+Auth: User/Admin
+Description: Lista todos os grupos do usuário
+
+POST /api/auth/groups
+Auth: Admin Only
+Body: { 
+  name: string,
+  description?: string 
+}
+Description: Cria um novo grupo
+
+PUT /api/auth/groups/:groupId
+Auth: Admin Only
+Body: { 
+  name?: string,
+  description?: string 
+}
+Description: Atualiza um grupo existente
+```
+
+
 ### Edificações
 ```
 GET /api/buildings/feicoes
@@ -97,10 +153,24 @@ Query params:
 ### Catálogo 3D
 ```
 GET /api/catalog3d/catalogo3d
+Auth: Required
 Query params:
 - q: termo de busca (opcional)
 - page: página (opcional, default: 1)
 - nr_records: registros por página (opcional, default: 10, max: 100)
+
+GET /api/catalog3d/permissions/:modelId
+Auth: Admin Only
+Description: Lista permissões de um modelo
+
+PUT /api/catalog3d/permissions/:modelId
+Auth: Admin Only
+Body: {
+  access_level?: 'public'|'private',
+  userIds?: string[],
+  groupIds?: string[]
+}
+Description: Atualiza permissões de um modelo
 ```
 
 ## Arquitetura
@@ -110,12 +180,14 @@ O projeto segue uma estrutura modular organizada por features:
 ```
 src/
 ├── common/           # Configurações e utilitários compartilhados
-│   ├── config/      # Configurações (database, logger, etc)
+│   ├── config/      # Configurações (database, logger, env validation)
 │   ├── errors/      # Tratamento de erros
 │   └── middleware/  # Middlewares Express
 ├── features/        # Módulos de funcionalidades
+│   ├── auth/        # Feature de autenticação
 │   ├── buildings/   # Feature de edificações
 │   ├── geographic/  # Feature de nomes geográficos
 │   └── catalog3d/   # Feature de catálogo 3D
-└── index.ts         # Ponto de entrada da aplicação
+├── app.ts          # Configuração do Express
+└── server.ts       # Ponto de entrada da aplicação
 ```

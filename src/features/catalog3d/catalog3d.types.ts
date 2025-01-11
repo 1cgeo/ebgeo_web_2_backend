@@ -17,6 +17,7 @@ export interface Catalog3D {
   type: string;
   heightoffset?: number;
   maximumscreenspaceerror?: number;
+  data_criacao: Date;
   data_carregamento: Date;
   municipio?: string;
   estado?: string;

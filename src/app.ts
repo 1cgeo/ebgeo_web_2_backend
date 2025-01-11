@@ -8,6 +8,7 @@ import 'dotenv/config';
 import buildingRoutes from './features/buildings/building.routes.js';
 import geographicRoutes from './features/geographic/geographic.routes.js';
 import catalog3dRoutes from './features/catalog3d/catalog3d.routes.js';
+import groupsRoutes from './features/groups/groups.routes.js';
 import authRoutes from './features/auth/auth.routes.js';
 
 import { errorHandler } from './common/middleware/errorHandler.js';
@@ -15,6 +16,7 @@ import { requestLogger } from './common/middleware/requestLogger.js';
 import {
   authenticateRequest,
   rateLimiter,
+  csrfProtection,
 } from './features/auth/auth.middleware.js';
 import { ApiError } from './common/errors/apiError.js';
 
@@ -51,6 +53,8 @@ app.use(compression());
 // Rate limiting global
 app.use(rateLimiter);
 
+app.use(csrfProtection);
+
 // Parsing com limites
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -70,6 +74,8 @@ app.use('/api/auth', authRoutes);
 
 // Middleware de autenticação global para todas as outras rotas
 app.use(authenticateRequest);
+
+app.use('/api/groups', groupsRoutes);
 
 // Rotas das features com prefixos apropriados
 app.use('/api/buildings', buildingRoutes);

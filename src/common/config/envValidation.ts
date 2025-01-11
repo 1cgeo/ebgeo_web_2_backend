@@ -24,12 +24,26 @@ export function validateDBEnvVariables(): void {
 
 export function validateAuthEnvVariables(): void {
   const requiredAuthVars = [
+    'PORT',
     'JWT_SECRET',
     'CSRF_SECRET',
     'PASSWORD_PEPPER',
     'COOKIE_SECURE',
     'COOKIE_SAME_SITE',
   ];
+
+  const missingVars = requiredAuthVars.filter(envVar => !process.env[envVar]);
+
+  if (missingVars.length > 0) {
+    throw new Error(
+      `Missing required authentication variables: ${missingVars.join(', ')}`,
+    );
+  }
+
+  const port = Number(process.env.PORT);
+  if (isNaN(port)) {
+    throw new Error('PORT must be a valid number');
+  }
 
   const pepper = process.env.PASSWORD_PEPPER;
   if (pepper && pepper.length < 32) {
@@ -50,14 +64,6 @@ export function validateAuthEnvVariables(): void {
   if (cookieSameSite === 'none' && cookieSecure !== 'true') {
     throw new Error(
       'When COOKIE_SAME_SITE is "none", COOKIE_SECURE must be "true"',
-    );
-  }
-
-  const missingVars = requiredAuthVars.filter(envVar => !process.env[envVar]);
-
-  if (missingVars.length > 0) {
-    throw new Error(
-      `Missing required authentication variables: ${missingVars.join(', ')}`,
     );
   }
 

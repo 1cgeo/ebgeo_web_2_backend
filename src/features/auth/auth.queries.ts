@@ -50,9 +50,3 @@ export const UPDATE_USER_LAST_LOGIN = `
   SET last_login = CURRENT_TIMESTAMP 
   WHERE id = $1;
 `;
-
-export const GET_USER_GROUPS = `
-  SELECT g.* FROM ng.groups g
-  INNER JOIN ng.user_groups ug ON g.id = ug.group_id
-  WHERE ug.user_id = $1;
-`;

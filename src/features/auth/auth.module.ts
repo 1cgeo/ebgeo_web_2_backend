@@ -4,7 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../common/config/database.js';
 import logger from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
-import { UserRole, User } from './auth.types.js';
+import {
+  UserRole,
+  User,
+  ApiKeyHistoryEntry,
+  ApiKeyHistoryResponse,
+} from './auth.types.js';
 import * as queries from './auth.queries.js';
 import { generateToken } from './auth.middleware.js';
 
@@ -264,5 +269,44 @@ export const validateApiKeyRequest = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error validating API key:', { error });
     return res.status(500).json({ message: 'Erro ao validar API key' });
+  }
+};
+
+export const getApiKeyHistory = async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw ApiError.unauthorized('Usuário não autenticado');
+  }
+
+  try {
+    const history = await db.any(queries.GET_USER_API_KEY_HISTORY, [
+      req.user.userId,
+    ]);
+
+    // Transformar os dados para um formato mais amigável
+    const formattedHistory: ApiKeyHistoryEntry[] = history.map(entry => ({
+      apiKey: entry.api_key,
+      createdAt: entry.created_at,
+      revokedAt: entry.revoked_at,
+      isActive: !entry.revoked_at,
+    }));
+
+    logger.info('Retrieved API key history', {
+      userId: req.user.userId,
+      entriesCount: history.length,
+    });
+
+    const response: ApiKeyHistoryResponse = {
+      userId: req.user.userId,
+      history: formattedHistory,
+    };
+
+    return res.json(response);
+  } catch (error) {
+    logger.error('Error retrieving API key history:', {
+      error,
+      userId: req.user.userId,
+      requestId: req.requestId,
+    });
+    throw ApiError.internal('Erro ao buscar histórico de API keys');
   }
 };

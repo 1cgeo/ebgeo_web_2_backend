@@ -1,13 +1,27 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 
-type AsyncRequestHandler = (
-  req: Request,
-  res: Response,
+type AsyncHandler<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+> = (
+  req: Request<P, ResBody, ReqBody, ReqQuery>,
+  res: Response<ResBody>,
   next: NextFunction,
 ) => Promise<any>;
 
-export const asyncHandler =
-  (fn: AsyncRequestHandler) =>
-  (req: Request, res: Response, next: NextFunction): void => {
-    Promise.resolve(fn(req, res, next)).catch(next);
+export function asyncHandler<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+>(
+  handler: AsyncHandler<P, ResBody, ReqBody, ReqQuery>,
+): RequestHandler<P, ResBody, ReqBody, ReqQuery> {
+  return (req, res, next) => {
+    return Promise.resolve(handler(req, res, next)).catch(next);
   };
+}

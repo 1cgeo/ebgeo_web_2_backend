@@ -1,4 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { rateLimit } from 'express-rate-limit';
@@ -161,8 +163,17 @@ export const authenticateRequest = async (
   }
 };
 // Role-based Authorization
-export const authorize = (roles: UserRole[] = []) => {
-  return (req: Request, _res: Response, next: NextFunction) => {
+export function authorize<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+>(roles: UserRole[] = []): RequestHandler<P, ResBody, ReqBody, ReqQuery> {
+  return (
+    req: Request<P, ResBody, ReqBody, ReqQuery>,
+    _res: Response,
+    next: NextFunction,
+  ) => {
     if (!req.user) {
       return next(ApiError.unauthorized('Usuário não autenticado'));
     }
@@ -179,7 +190,7 @@ export const authorize = (roles: UserRole[] = []) => {
 
     next();
   };
-};
+}
 
 // Generate JWT Token
 export const generateToken = (payload: JWTPayload): string => {

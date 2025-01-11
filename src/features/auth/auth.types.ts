@@ -15,22 +15,6 @@ export interface User {
   updatedAt: Date;
 }
 
-export interface Group {
-  id: string;
-  name: string;
-  description?: string;
-  createdBy: string; // User ID
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface UserGroup {
-  userId: string;
-  groupId: string;
-  addedBy: string; // User ID
-  addedAt: Date;
-}
-
 export interface JWTPayload {
   userId: string;
   username: string;
@@ -53,7 +37,6 @@ export interface ApiKeyResponse {
   }>;
 }
 
-// Para o middleware de autenticação
 export interface RequestWithUser extends Request {
   user?: JWTPayload;
 }
@@ -70,6 +53,13 @@ export interface CreateUserRequestBody {
   role: UserRole;
 }
 
-export interface ApiKeyRequestBody {
-  username: string;
+export interface ApiKeyHistoryEntry {
+  apiKey: string;
+  createdAt: Date;
+  revokedAt?: Date;
+  isActive: boolean;
+}
+export interface ApiKeyHistoryResponse {
+  userId: string;
+  history: ApiKeyHistoryEntry[];
 }

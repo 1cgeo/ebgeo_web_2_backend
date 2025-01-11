@@ -6,12 +6,9 @@ import {
   getUserApiKey,
   createUser,
   validateApiKeyRequest,
+  getApiKeyHistory,
 } from './auth.module.js';
-import {
-  authenticateRequest,
-  authorize,
-  csrfProtection,
-} from './auth.middleware.js';
+import { authenticateRequest, authorize } from './auth.middleware.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from './auth.types.js';
 import { loginValidation, createUserValidation } from './auth.validation.js';
@@ -22,7 +19,6 @@ router.post('/login', loginValidation, asyncHandler(login));
 
 // Rotas protegidas - requerem autenticação
 router.use(authenticateRequest);
-router.use(csrfProtection);
 
 router.post('/logout', asyncHandler(logout));
 
@@ -48,6 +44,13 @@ router.post(
   authorize([UserRole.ADMIN]),
   createUserValidation,
   asyncHandler(createUser),
+);
+
+// Rota de histórico de API keys
+router.get(
+  '/api-key/history',
+  authorize([UserRole.USER, UserRole.ADMIN]),
+  asyncHandler(getApiKeyHistory),
 );
 
 export default router;

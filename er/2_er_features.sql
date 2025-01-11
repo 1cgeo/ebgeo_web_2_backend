@@ -65,7 +65,7 @@ BEGIN
     setweight(to_tsvector('portuguese', COALESCE(array_to_string(NEW.palavras_chave, ' '), '')), 'A');
     setweight(to_tsvector('portuguese', COALESCE(NEW.description, '')), 'B') ||
     setweight(to_tsvector('portuguese', COALESCE(NEW.municipio, '')), 'C') ||
-    setweight(to_tsvector('portuguese', COALESCE(NEW.estado, '')), 'D') ||
+    setweight(to_tsvector('portuguese', COALESCE(NEW.estado, '')), 'D')
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;

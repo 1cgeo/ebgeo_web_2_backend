@@ -4,13 +4,13 @@ export const buildingSearchValidation = [
   query('lat')
     .exists()
     .withMessage('Latitude é obrigatória')
-    .isFloat()
-    .withMessage('Latitude deve ser um número válido'),
+    .isFloat({ min: -90, max: 90 })
+    .withMessage('Latitude deve estar entre -90 e 90 graus'),
   query('lon')
     .exists()
     .withMessage('Longitude é obrigatória')
-    .isFloat()
-    .withMessage('Longitude deve ser um número válido'),
+    .isFloat({ min: -180, max: 180 })
+    .withMessage('Longitude deve estar entre -180 e 180 graus'),
   query('z')
     .exists()
     .withMessage('Altitude é obrigatória')
