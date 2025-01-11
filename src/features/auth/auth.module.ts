@@ -72,20 +72,44 @@ export const login = async (req: LoginRequest, res: Response) => {
     logger.info('User logged in successfully', {
       userId: user.id,
       username: user.username,
+      requestId: req.requestId,
     });
 
     // Retornar dados do usuário (sem senha)
     const { password: _, ...userWithoutPassword } = user;
-    return res.json({ user: userWithoutPassword });
+    return res.json({
+      user: userWithoutPassword,
+      token, // Opcional: retornar token no response
+    });
   } catch (error) {
-    logger.error('Login error:', { error, username });
+    logger.error('Login error:', { error, username, requestId: req.requestId });
     throw error;
   }
 };
 
-export const logout = async (_req: Request, res: Response) => {
-  res.clearCookie('token');
-  return res.json({ message: 'Logout realizado com sucesso' });
+export const logout = async (req: Request, res: Response) => {
+  try {
+    // Limpar cookie do token
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.COOKIE_SECURE === 'true',
+      sameSite: process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none',
+    });
+
+    logger.info('User logged out', {
+      userId: req.user?.userId,
+      requestId: req.requestId,
+    });
+
+    return res.json({ message: 'Logout realizado com sucesso' });
+  } catch (error) {
+    logger.error('Logout error:', {
+      error,
+      userId: req.user?.userId,
+      requestId: req.requestId,
+    });
+    throw error;
+  }
 };
 
 export const generateNewApiKey = async (req: Request, res: Response) => {
@@ -112,6 +136,7 @@ export const generateNewApiKey = async (req: Request, res: Response) => {
     logger.info('API key regenerated', {
       userId: req.user.userId,
       username: req.user.username,
+      requestId: req.requestId,
     });
 
     return res.json({
@@ -127,6 +152,7 @@ export const generateNewApiKey = async (req: Request, res: Response) => {
     logger.error('Error generating new API key:', {
       error,
       userId: req.user.userId,
+      requestId: req.requestId,
     });
     throw ApiError.internal('Erro ao gerar nova API key');
   }
@@ -154,6 +180,7 @@ export const getUserApiKey = async (req: Request, res: Response) => {
     logger.error('Error retrieving API key:', {
       error,
       userId: req.user.userId,
+      requestId: req.requestId,
     });
     throw error;
   }
@@ -194,5 +221,48 @@ export const createUser = async (req: CreateUserRequest, res: Response) => {
       adminId: req.user.userId,
     });
     throw error;
+  }
+};
+
+// Rota usada pelo nginx auth_request
+export const validateApiKeyRequest = async (req: Request, res: Response) => {
+  const apiKey =
+    req.query.api_key?.toString() || req.headers['x-api-key']?.toString();
+
+  if (!apiKey) {
+    logger.warn('No API key provided in request');
+    return res.status(401).json({ message: 'API key não fornecida' });
+  }
+
+  try {
+    const user = await db.oneOrNone(
+      'SELECT id, username, role, is_active FROM ng.users WHERE api_key = $1',
+      [apiKey],
+    );
+
+    if (!user) {
+      logger.warn('Invalid API key used', { apiKey });
+      return res.status(401).json({ message: 'API key inválida' });
+    }
+
+    if (!user.is_active) {
+      logger.warn('Inactive user attempted to use API key', {
+        userId: user.id,
+        username: user.username,
+      });
+      return res.status(403).json({ message: 'Usuário inativo' });
+    }
+
+    logger.info('API key validated successfully', {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+    });
+
+    // nginx auth_request espera status 200 para autorizar
+    return res.status(200).json({ message: 'API key válida' });
+  } catch (error) {
+    logger.error('Error validating API key:', { error });
+    return res.status(500).json({ message: 'Erro ao validar API key' });
   }
 };

@@ -1,4 +1,4 @@
-import { query } from 'express-validator';
+import { body, query } from 'express-validator';
 
 export const searchValidation = [
   query('q').optional().isString().trim().escape(),
@@ -12,4 +12,39 @@ export const searchValidation = [
     .isInt({ min: 1, max: 100 })
     .withMessage('Número de registros deve estar entre 1 e 100')
     .toInt(),
+];
+
+export const updatePermissionsValidation = [
+  body('access_level')
+    .optional()
+    .isIn(['public', 'private'])
+    .withMessage('Nível de acesso deve ser public ou private'),
+
+  body('userIds')
+    .optional()
+    .isArray()
+    .withMessage('userIds deve ser um array')
+    .custom(value => {
+      if (!value) return true;
+      return value.every((id: string) => {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          id,
+        );
+      });
+    })
+    .withMessage('Todos os userIds devem ser UUIDs válidos'),
+
+  body('groupIds')
+    .optional()
+    .isArray()
+    .withMessage('groupIds deve ser um array')
+    .custom(value => {
+      if (!value) return true;
+      return value.every((id: string) => {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          id,
+        );
+      });
+    })
+    .withMessage('Todos os groupIds devem ser UUIDs válidos'),
 ];

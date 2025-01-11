@@ -13,7 +13,7 @@ import authRoutes from './features/auth/auth.routes.js';
 import { errorHandler } from './common/middleware/errorHandler.js';
 import { requestLogger } from './common/middleware/requestLogger.js';
 import {
-  authenticateJWT,
+  authenticateRequest,
   rateLimiter,
 } from './features/auth/auth.middleware.js';
 import { ApiError } from './common/errors/apiError.js';
@@ -69,7 +69,7 @@ app.use('/api/buildings', sanitizeGeoCoordinates);
 app.use('/api/auth', authRoutes);
 
 // Middleware de autenticação global para todas as outras rotas
-app.use(authenticateJWT);
+app.use(authenticateRequest);
 
 // Rotas das features com prefixos apropriados
 app.use('/api/buildings', buildingRoutes);

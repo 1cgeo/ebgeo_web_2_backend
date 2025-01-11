@@ -44,19 +44,6 @@ CREATE TABLE ng.user_groups (
 CREATE INDEX idx_user_groups_user_id ON ng.user_groups(user_id);
 CREATE INDEX idx_user_groups_group_id ON ng.user_groups(group_id);
 
-CREATE TABLE ng.model_shares (
-    model_id UUID REFERENCES ng.catalogo_3d(id) ON DELETE CASCADE,
-    access_level VARCHAR(20) NOT NULL,
-    shared_with JSONB,
-    created_by UUID NOT NULL REFERENCES ng.users(id),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (model_id),
-    CONSTRAINT valid_share_access_level CHECK (access_level IN ('public', 'private'))
-);
-
-CREATE INDEX idx_model_shares_access ON ng.model_shares(access_level);
-
 -- Função para atualizar timestamp de updated_at
 CREATE OR REPLACE FUNCTION ng.update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -76,58 +63,6 @@ CREATE TRIGGER update_groups_updated_at
     BEFORE UPDATE ON ng.groups
     FOR EACH ROW
     EXECUTE FUNCTION ng.update_updated_at_column();
-
-CREATE TRIGGER update_model_shares_updated_at
-    BEFORE UPDATE ON ng.model_shares
-    FOR EACH ROW
-    EXECUTE FUNCTION ng.update_updated_at_column();
-
--- Função auxiliar para verificar permissões de acesso
-CREATE OR REPLACE FUNCTION ng.check_model_access(p_user_id UUID, p_model_id UUID)
-RETURNS BOOLEAN AS $$
-DECLARE
-    v_access_level VARCHAR;
-    v_shared_with JSONB;
-    v_user_groups UUID[];
-BEGIN
-    -- Obter nível de acesso e configurações de compartilhamento
-    SELECT ms.access_level, ms.shared_with
-    INTO v_access_level, v_shared_with
-    FROM ng.model_shares ms
-    WHERE ms.model_id = p_model_id;
-
-    -- Se não encontrou configuração de compartilhamento, não tem acesso
-    IF v_access_level IS NULL THEN
-        RETURN FALSE;
-    END IF;
-
-    -- Se é público, permite acesso
-    IF v_access_level = 'public' THEN
-        RETURN TRUE;
-    END IF;
-
-    -- Verifica compartilhamento direto com usuário
-    IF v_shared_with->>'userIds' IS NOT NULL 
-       AND p_user_id::TEXT = ANY(ARRAY(SELECT jsonb_array_elements_text(v_shared_with->'userIds')))
-    THEN
-        RETURN TRUE;
-    END IF;
-
-    -- Verifica compartilhamento via grupo
-    SELECT ARRAY_AGG(group_id)
-    INTO v_user_groups
-    FROM ng.user_groups
-    WHERE user_id = p_user_id;
-
-    IF v_shared_with->>'groupIds' IS NOT NULL 
-       AND v_user_groups && ARRAY(SELECT jsonb_array_elements_text(v_shared_with->'groupIds')::UUID)
-    THEN
-        RETURN TRUE;
-    END IF;
-
-    RETURN FALSE;
-END;
-$$ LANGUAGE plpgsql;
 
 -- Tabela de histórico de API keys
 CREATE TABLE ng.api_key_history (

@@ -2,12 +2,6 @@ export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
 }
-
-export enum ModelAccessLevel {
-  PUBLIC = 'public',
-  PRIVATE = 'private',
-}
-
 export interface User {
   id: string;
   username: string;
@@ -37,18 +31,6 @@ export interface UserGroup {
   addedAt: Date;
 }
 
-export interface ModelShare {
-  modelId: string;
-  accessLevel: ModelAccessLevel;
-  sharedWith?: {
-    userIds?: string[];
-    groupIds?: string[];
-  };
-  createdBy: string; // User ID
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface JWTPayload {
   userId: string;
   username: string;
@@ -69,15 +51,6 @@ export interface ApiKeyResponse {
     createdAt: Date;
     revokedAt?: Date;
   }>;
-}
-
-export interface ModelPermissionUpdate {
-  modelId: string;
-  accessLevel: ModelAccessLevel;
-  sharedWith: {
-    userIds?: string[];
-    groupIds?: string[];
-  };
 }
 
 // Para o middleware de autenticação

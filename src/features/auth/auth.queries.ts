@@ -51,45 +51,8 @@ export const UPDATE_USER_LAST_LOGIN = `
   WHERE id = $1;
 `;
 
-export const GET_MODEL_ACCESS = `
-  WITH user_groups AS (
-    SELECT group_id FROM ng.user_groups WHERE user_id = $1
-  )
-  SELECT m.* FROM ng.model_shares m
-  WHERE m.model_id = $2
-    AND (
-      m.access_level = 'public'
-      OR (
-        m.shared_with->>'userIds' IS NOT NULL 
-        AND $1::text = ANY(ARRAY(SELECT jsonb_array_elements_text(m.shared_with->'userIds')))
-      )
-      OR (
-        m.shared_with->>'groupIds' IS NOT NULL 
-        AND EXISTS (
-          SELECT 1 FROM user_groups ug
-          WHERE ug.group_id = ANY(ARRAY(SELECT jsonb_array_elements_text(m.shared_with->'groupIds')))
-        )
-      )
-    );
-`;
-
 export const GET_USER_GROUPS = `
   SELECT g.* FROM ng.groups g
   INNER JOIN ng.user_groups ug ON g.id = ug.group_id
   WHERE ug.user_id = $1;
-`;
-
-export const SHARE_MODEL = `
-  INSERT INTO ng.model_shares (
-    model_id, access_level, shared_with, created_by, 
-    created_at, updated_at
-  ) VALUES (
-    $1, $2, $3, $4,
-    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-  ) ON CONFLICT (model_id) 
-  DO UPDATE SET 
-    access_level = EXCLUDED.access_level,
-    shared_with = EXCLUDED.shared_with,
-    updated_at = CURRENT_TIMESTAMP
-  RETURNING *;
 `;

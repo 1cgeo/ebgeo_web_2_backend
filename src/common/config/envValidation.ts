@@ -28,7 +28,7 @@ export function validateAuthEnvVariables(): void {
     'CSRF_SECRET',
     'PASSWORD_PEPPER',
     'COOKIE_SECURE',
-    'COOKIE_SAME_SITE'
+    'COOKIE_SAME_SITE',
   ];
 
   const pepper = process.env.PASSWORD_PEPPER;
@@ -48,7 +48,9 @@ export function validateAuthEnvVariables(): void {
 
   // Se COOKIE_SAME_SITE é 'none', COOKIE_SECURE deve ser 'true'
   if (cookieSameSite === 'none' && cookieSecure !== 'true') {
-    throw new Error('When COOKIE_SAME_SITE is "none", COOKIE_SECURE must be "true"');
+    throw new Error(
+      'When COOKIE_SAME_SITE is "none", COOKIE_SECURE must be "true"',
+    );
   }
 
   const missingVars = requiredAuthVars.filter(envVar => !process.env[envVar]);
