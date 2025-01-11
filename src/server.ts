@@ -4,6 +4,7 @@ import app from './app.js';
 import logger from './common/config/logger.js';
 import { db, testDatabaseConnection } from './common/config/database.js';
 import { validateDBEnvVariables } from './common/config/envValidation.js';
+import { validateEnvVariables } from './common/config/envValidation.js';
 
 const numCPUs = os.cpus().length;
 const numWorkers = Math.min(Math.floor(numCPUs / 3), 8);
@@ -13,6 +14,7 @@ async function startServer() {
   try {
     // Validar variáveis de ambiente
     validateDBEnvVariables();
+    validateEnvVariables();
 
     // Testar conexão com banco
     await testDatabaseConnection();
