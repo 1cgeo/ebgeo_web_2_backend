@@ -1,0 +1,12 @@
+export interface Building {
+  id: string;
+  nome?: string;
+  municipio?: string;
+  estado?: string;
+  tipo?: string;
+  altitude_base: number;
+  altitude_topo: number;
+  geom: any;
+  z_distance?: number;
+  xy_distance?: number;
+}
