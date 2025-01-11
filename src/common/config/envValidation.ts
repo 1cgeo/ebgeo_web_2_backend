@@ -23,7 +23,33 @@ export function validateDBEnvVariables(): void {
 }
 
 export function validateAuthEnvVariables(): void {
-  const requiredAuthVars = ['JWT_SECRET', 'CSRF_SECRET'];
+  const requiredAuthVars = [
+    'JWT_SECRET',
+    'CSRF_SECRET',
+    'PASSWORD_PEPPER',
+    'COOKIE_SECURE',
+    'COOKIE_SAME_SITE'
+  ];
+
+  const pepper = process.env.PASSWORD_PEPPER;
+  if (pepper && pepper.length < 32) {
+    throw new Error('PASSWORD_PEPPER must be at least 32 characters long');
+  }
+
+  const cookieSecure = process.env.COOKIE_SECURE?.toLowerCase();
+  if (cookieSecure && !['true', 'false'].includes(cookieSecure)) {
+    throw new Error('COOKIE_SECURE must be either "true" or "false"');
+  }
+
+  const cookieSameSite = process.env.COOKIE_SAME_SITE?.toLowerCase();
+  if (cookieSameSite && !['strict', 'lax', 'none'].includes(cookieSameSite)) {
+    throw new Error('COOKIE_SAME_SITE must be one of: "strict", "lax", "none"');
+  }
+
+  // Se COOKIE_SAME_SITE é 'none', COOKIE_SECURE deve ser 'true'
+  if (cookieSameSite === 'none' && cookieSecure !== 'true') {
+    throw new Error('When COOKIE_SAME_SITE is "none", COOKIE_SECURE must be "true"');
+  }
 
   const missingVars = requiredAuthVars.filter(envVar => !process.env[envVar]);
 

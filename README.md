@@ -30,6 +30,7 @@ DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
 JWT_SECRET=seu-segredo-seguro
 CSRF_SECRET=outro-segredo-seguro
+PASSWORD_PEPPER=outro-segredo-seguro
 RATE_LIMIT_WINDOW_MS=900000  # 15 minutos
 RATE_LIMIT_MAX_REQUESTS=100
 COOKIE_SECURE=true  # Em produção

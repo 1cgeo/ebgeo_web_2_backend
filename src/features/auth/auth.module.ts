@@ -8,6 +8,14 @@ import { UserRole, User } from './auth.types.js';
 import * as queries from './auth.queries.js';
 import { generateToken } from './auth.middleware.js';
 
+const addPepper = (password: string): string => {
+  const pepper = process.env.PASSWORD_PEPPER;
+  if (!pepper) {
+    throw new Error('PASSWORD_PEPPER environment variable is not set');
+  }
+  return `${password}${pepper}`;
+};
+
 interface LoginRequest extends Request {
   body: {
     username: string;
@@ -32,7 +40,9 @@ export const login = async (req: LoginRequest, res: Response) => {
       username,
     ]);
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const pepperedPassword = addPepper(password);
+
+    if (!user || !(await bcrypt.compare(pepperedPassword, user.password))) {
       throw ApiError.unauthorized('Credenciais inválidas');
     }
 
@@ -54,8 +64,8 @@ export const login = async (req: LoginRequest, res: Response) => {
     // Definir cookie seguro
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: process.env.COOKIE_SECURE === 'true',
+      sameSite: process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none',
       maxAge: 15 * 60 * 1000, // 15 minutos
     });
 
@@ -158,7 +168,8 @@ export const createUser = async (req: CreateUserRequest, res: Response) => {
   const { username, password, email, role } = req.body;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const pepperedPassword = addPepper(password);
+    const hashedPassword = await bcrypt.hash(pepperedPassword, 10);
     const apiKey = uuidv4();
 
     const newUser = await db.one(queries.CREATE_USER, [
