@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ITask } from 'pg-promise';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import {
   CHECK_MODEL_ACCESS,
@@ -39,14 +39,24 @@ export async function listModelPermissions(req: Request, res: Response) {
       [modelId],
     );
 
-    logger.info('Listed model permissions', {
-      modelId,
-      adminId: req.user.userId,
+    logger.logAccess('Listed model permissions', {
+      userId: req.user.userId,
+      additionalInfo: {
+        modelId,
+        role: req.user.role,
+      },
     });
 
     return res.json(permissions);
   } catch (error) {
-    logger.error('Error listing model permissions:', { error, modelId });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/catalog3d/permissions',
+      userId: req.user.userId,
+      additionalInfo: {
+        modelId,
+      },
+    });
     throw ApiError.internal('Erro ao listar permissões do modelo');
   }
 }
@@ -123,15 +133,25 @@ export async function updateModelPermissions(req: Request, res: Response) {
       }
     });
 
-    logger.info('Updated model permissions', {
-      modelId,
-      adminId: req.user.userId,
-      changes: { access_level, userIds, groupIds },
+    logger.logSecurity('Model permissions updated', {
+      userId: req.user.userId,
+      additionalInfo: {
+        modelId,
+        changes: { access_level, userIds, groupIds },
+      },
     });
 
     return res.json({ message: 'Permissões atualizadas com sucesso' });
   } catch (error) {
-    logger.error('Error updating model permissions:', { error, modelId });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/catalog3d/permissions',
+      userId: req.user.userId,
+      additionalInfo: {
+        modelId,
+        attemptedChanges: { access_level, userIds, groupIds },
+      },
+    });
     throw ApiError.internal('Erro ao atualizar permissões do modelo');
   }
 }

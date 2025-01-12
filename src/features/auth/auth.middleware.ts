@@ -65,11 +65,13 @@ export const authenticateRequest = async (
     if (!token && !apiKey) {
       req.userType = 'guest';
       req.user = undefined;
-      logger.info('Guest request received', {
+      logger.logAccess('Guest request received', {
         requestId: req.requestId,
-        path: req.path,
-        method: req.method,
-        ip: req.ip,
+        additionalInfo: {
+          path: req.path,
+          method: req.method,
+          ip: req.ip,
+        },
       });
       return next();
     }
@@ -88,12 +90,14 @@ export const authenticateRequest = async (
           apiKey: apiKey,
         };
         req.userType = 'authenticated';
-        logger.info('API key authenticated request', {
-          requestId: req.requestId,
+        logger.logAuth('API key authentication successful', {
           userId: user.id,
-          username: user.username,
-          path: req.path,
-          method: req.method,
+          requestId: req.requestId,
+          additionalInfo: {
+            username: user.username,
+            path: req.path,
+            method: req.method,
+          },
         });
         return next();
       }
@@ -115,12 +119,14 @@ export const authenticateRequest = async (
         });
       }
 
-      logger.info('JWT authenticated request', {
-        requestId: req.requestId,
+      logger.logAuth('JWT authentication successful', {
         userId: decoded.userId,
-        username: decoded.username,
-        path: req.path,
-        method: req.method,
+        requestId: req.requestId,
+        additionalInfo: {
+          username: decoded.username,
+          path: req.path,
+          method: req.method,
+        },
       });
 
       return next();
@@ -128,11 +134,13 @@ export const authenticateRequest = async (
 
     req.userType = 'guest';
     req.user = undefined;
-    logger.info('Invalid authentication attempt', {
+    logger.logSecurity('Invalid authentication attempt', {
       requestId: req.requestId,
-      path: req.path,
-      method: req.method,
-      ip: req.ip,
+      additionalInfo: {
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+      },
     });
     next();
   } catch (error) {
@@ -163,11 +171,15 @@ export function authorize<
     }
 
     if (roles.length && !roles.includes(req.user.role)) {
-      logger.warn('Unauthorized role access attempt', {
-        requestId: req.requestId,
+      logger.logSecurity('Unauthorized role access attempt', {
         userId: req.user.userId,
-        requiredRoles: roles,
-        userRole: req.user.role,
+        requestId: req.requestId,
+        additionalInfo: {
+          requiredRoles: roles,
+          userRole: req.user.role,
+          path: req.path,
+          method: req.method,
+        },
       });
       return next(ApiError.forbidden('Acesso negado'));
     }

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { Feature } from './identify.types.js';
 import { FIND_NEAREST_FEATURE } from './identify.queries.js';
 import { ApiError } from '../../common/errors/apiError.js';
@@ -34,12 +34,14 @@ export async function findNearestFeature(req: Request, res: Response) {
       userId,
     ]);
 
-    logger.info('Feature search performed', {
-      coordinates: { lat, lon, z },
+    logger.logAccess('Feature search performed', {
       userId,
-      found: !!result,
-      featureId: result?.id,
-      modelId: result?.model_id,
+      additionalInfo: {
+        coordinates: { lat, lon, z },
+        found: !!result,
+        featureId: result?.id,
+        modelId: result?.model_id,
+      },
     });
 
     if (!result) {
@@ -50,7 +52,13 @@ export async function findNearestFeature(req: Request, res: Response) {
 
     return res.json(result);
   } catch (error) {
-    logger.error('Error in feature search:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/feicoes',
+      additionalInfo: {
+        coordinates: { lat, lon, z },
+      },
+    });
     throw ApiError.internal('Erro ao processar identificação de feição');
   }
 }

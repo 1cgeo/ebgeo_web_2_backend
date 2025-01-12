@@ -5,7 +5,7 @@ import https from 'https';
 import http from 'http';
 import fs from 'fs';
 import app from './app.js';
-import logger from './common/config/logger.js';
+import logger, { LogCategory } from './common/config/logger.js';
 import { db, testDatabaseConnection } from './common/config/database.js';
 import { validateEnvVariables } from './common/config/envValidation.js';
 import { envManager } from './common/config/environment.js';
@@ -24,7 +24,12 @@ async function startServer() {
   try {
     // Validação única e centralizada de todas as variáveis de ambiente
     validateEnvVariables();
-    logger.info('Environment variables validated successfully');
+    logger.logAccess('System initialization', {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        status: 'environment_validated',
+      },
+    });
 
     // Testar conexão com banco
     await testDatabaseConnection();
@@ -37,47 +42,89 @@ async function startServer() {
         cert: fs.readFileSync(process.env.SSL_CERT_PATH || ''),
       };
       server = https.createServer(httpsOptions, app);
-      logger.info('Starting server in HTTPS mode (Production)');
     } else {
       server = http.createServer(app);
-      logger.info('Starting server in HTTP mode (Development)');
     }
+    logger.logAccess('Server starting', {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        mode: envManager.useHttps() ? 'HTTPS' : 'HTTP',
+        environment: envManager.getEnvironment(),
+      },
+    });
 
     server.listen(PORT, () => {
-      logger.info(
-        `Worker ${process.pid}: Geographic Names Service started on port ${PORT}`,
-        {
+      logger.logAccess('Service started', {
+        category: LogCategory.SYSTEM,
+        additionalInfo: {
+          pid: process.pid,
+          port: PORT,
           environment: envManager.getEnvironment(),
           protocol: envManager.useHttps() ? 'https' : 'http',
         },
-      );
+      });
     });
 
     // Graceful shutdown handler
     const shutdown = async () => {
-      logger.info('Shutting down server...');
+      logger.logAccess('Shutdown sequence initiated', {
+        category: LogCategory.SYSTEM,
+        additionalInfo: {
+          trigger: 'manual',
+          timestamp: new Date().toISOString(),
+        },
+      });
 
       server.close(async () => {
-        logger.info('HTTP/HTTPS server closed');
+        logger.logAccess('Server shutdown initiated', {
+          category: LogCategory.SYSTEM,
+          additionalInfo: {
+            stage: 'http_server_closed',
+          },
+        });
 
         try {
           await db.$pool.end();
-          logger.info('Database connections closed');
+          logger.logAccess('Database shutdown completed', {
+            category: LogCategory.SYSTEM,
+            additionalInfo: {
+              stage: 'database_connections_closed',
+            },
+          });
 
           const uptime = Date.now() - startTime;
-          logger.info(`Server shutting down after ${uptime}ms uptime`);
+          logger.logAccess('Server shutdown completed', {
+            category: LogCategory.SYSTEM,
+            additionalInfo: {
+              uptime,
+              shutdownType: 'graceful',
+            },
+          });
 
           process.exit(0);
         } catch (error) {
-          logger.error('Error during shutdown:', { error });
+          logger.logError(
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              category: LogCategory.SYSTEM,
+              additionalInfo: {
+                stage: 'shutdown',
+                operation: 'shutdown_procedure',
+              },
+            },
+          );
           process.exit(1);
         }
       });
 
       setTimeout(() => {
-        logger.error(
-          'Could not close connections in time, forcefully shutting down',
-        );
+        logger.logError(new Error('Force shutdown due to timeout'), {
+          category: LogCategory.SYSTEM,
+          additionalInfo: {
+            stage: 'shutdown',
+            shutdownType: 'forced',
+          },
+        });
         process.exit(1);
       }, 30000);
     };
@@ -85,7 +132,13 @@ async function startServer() {
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
   } catch (error) {
-    logger.error('Failed to start server:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        stage: 'startup',
+        operation: 'server_initialization',
+      },
+    });
     process.exit(1);
   }
 }
@@ -103,37 +156,75 @@ async function initializePrimaryProcess() {
 
     // Enhanced cluster event handling
     cluster.on('fork', worker => {
-      logger.info(`Worker ${worker.process.pid} forked`);
+      logger.logAccess('Worker forked', {
+        category: LogCategory.SYSTEM,
+        additionalInfo: {
+          pid: worker.process.pid,
+          status: 'created',
+        },
+      });
     });
 
     cluster.on('online', worker => {
-      logger.info(`Worker ${worker.process.pid} is online`);
+      logger.logAccess('Worker online', {
+        category: LogCategory.SYSTEM,
+        additionalInfo: {
+          pid: worker.process.pid,
+          status: 'online',
+        },
+      });
     });
 
     cluster.on('exit', (worker, code, signal) => {
       if (signal) {
-        logger.info(
-          `Worker ${worker.process.pid} was killed by signal: ${signal}`,
-        );
+        logger.logError(new Error(`Worker killed by signal: ${signal}`), {
+          category: LogCategory.SYSTEM,
+          additionalInfo: {
+            pid: worker.process.pid,
+            signal,
+          },
+        });
       } else if (code !== 0) {
-        logger.error(
-          `Worker ${worker.process.pid} exited with error code: ${code}`,
-        );
-        logger.info('Starting a new worker...');
+        logger.logError(new Error(`Worker exited with error`), {
+          category: LogCategory.SYSTEM,
+          additionalInfo: {
+            pid: worker.process.pid,
+            errorCode: code,
+          },
+        });
+        logger.logAccess('Worker replacement initiated', {
+          category: LogCategory.SYSTEM,
+        });
         cluster.fork();
       } else {
-        logger.info(`Worker ${worker.process.pid} success!`);
+        logger.logAccess('Worker completed successfully', {
+          category: LogCategory.SYSTEM,
+          additionalInfo: {
+            pid: worker.process.pid,
+          },
+        });
       }
     });
   } catch (error) {
-    logger.error('Primary process initialization failed:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        stage: 'startup',
+        operation: 'primary_process_initialization',
+      },
+    });
     process.exit(1);
   }
 }
 
 // Main execution
 if (cluster.isPrimary) {
-  logger.info(`Primary ${process.pid} is running`);
+  logger.logAccess('Primary process started', {
+    category: LogCategory.SYSTEM,
+    additionalInfo: {
+      pid: process.pid,
+    },
+  });
   initializePrimaryProcess();
 } else {
   startServer();

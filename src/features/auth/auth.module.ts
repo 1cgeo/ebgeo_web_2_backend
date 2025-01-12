@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import { envManager } from '../../common/config/environment.js';
 import {
@@ -75,11 +75,13 @@ export const login = async (req: LoginRequest, res: Response) => {
       maxAge: 15 * 60 * 1000, // 15 minutos
     });
 
-    logger.info('User logged in successfully', {
+    logger.logAuth('User logged in successfully', {
       userId: user.id,
-      username: user.username,
       requestId: req.requestId,
-      environment: envManager.getEnvironment(),
+      additionalInfo: {
+        username: user.username,
+        environment: envManager.getEnvironment(),
+      },
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -88,7 +90,14 @@ export const login = async (req: LoginRequest, res: Response) => {
       token,
     });
   } catch (error) {
-    logger.error('Login error:', { error, username, requestId: req.requestId });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.AUTH,
+      requestId: req.requestId,
+      additionalInfo: {
+        username,
+        operation: 'login',
+      },
+    });
     throw error;
   }
 };
@@ -104,17 +113,20 @@ export const logout = async (req: Request, res: Response) => {
       sameSite: cookieConfig.sameSite,
     });
 
-    logger.info('User logged out', {
+    logger.logAuth('User logged out', {
       userId: req.user?.userId,
       requestId: req.requestId,
     });
 
     return res.json({ message: 'Logout realizado com sucesso' });
   } catch (error) {
-    logger.error('Logout error:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.AUTH,
       userId: req.user?.userId,
       requestId: req.requestId,
+      additionalInfo: {
+        operation: 'logout',
+      },
     });
     throw error;
   }
@@ -141,10 +153,13 @@ export const generateNewApiKey = async (req: Request, res: Response) => {
       req.user.userId,
     ]);
 
-    logger.info('API key regenerated', {
+    logger.logSecurity('API key regenerated', {
       userId: req.user.userId,
-      username: req.user.username,
       requestId: req.requestId,
+      additionalInfo: {
+        username: req.user.username,
+        operation: 'api_key_regenerate',
+      },
     });
 
     return res.json({
@@ -157,10 +172,13 @@ export const generateNewApiKey = async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
-    logger.error('Error generating new API key:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SECURITY,
       userId: req.user.userId,
       requestId: req.requestId,
+      additionalInfo: {
+        operation: 'api_key_generation',
+      },
     });
     throw ApiError.internal('Erro ao gerar nova API key');
   }
@@ -185,10 +203,13 @@ export const getUserApiKey = async (req: Request, res: Response) => {
       username: user.username,
     });
   } catch (error) {
-    logger.error('Error retrieving API key:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SECURITY,
       userId: req.user.userId,
       requestId: req.requestId,
+      additionalInfo: {
+        operation: 'api_key_retrieval',
+      },
     });
     throw error;
   }
@@ -215,18 +236,25 @@ export const createUser = async (req: CreateUserRequest, res: Response) => {
       apiKey,
     ]);
 
-    logger.info('New user created', {
-      createdBy: req.user.userId,
-      newUserId: newUser.id,
-      username: newUser.username,
+    logger.logAuth('User created', {
+      userId: req.user.userId,
+      additionalInfo: {
+        createdUserId: newUser.id,
+        username: newUser.username,
+        role: newUser.role,
+        operation: 'user_creation',
+      },
     });
 
     const { password: _, ...userWithoutPassword } = newUser;
     return res.status(201).json(userWithoutPassword);
   } catch (error) {
-    logger.error('Error creating user:', {
-      error,
-      adminId: req.user.userId,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.AUTH,
+      userId: req.user.userId,
+      additionalInfo: {
+        operation: 'user_creation',
+      },
     });
     throw error;
   }
@@ -238,7 +266,17 @@ export const validateApiKeyRequest = async (req: Request, res: Response) => {
     req.query.api_key?.toString() || req.headers['x-api-key']?.toString();
 
   if (!apiKey) {
-    logger.warn('No API key provided in request');
+    logger.logSecurity('Authentication failed', {
+      category: LogCategory.SECURITY,
+      requestId: req.id,
+      additionalInfo: {
+        reason: 'missing_api_key',
+        operation: 'api_key_validation',
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+      },
+    });
     return res.status(401).json({ message: 'API key não fornecida' });
   }
 
@@ -249,28 +287,44 @@ export const validateApiKeyRequest = async (req: Request, res: Response) => {
     );
 
     if (!user) {
-      logger.warn('Invalid API key used', { apiKey });
+      logger.logSecurity('Invalid API key attempt', {
+        additionalInfo: {
+          apiKey,
+          operation: 'api_key_validation',
+        },
+      });
       return res.status(401).json({ message: 'API key inválida' });
     }
 
     if (!user.is_active) {
-      logger.warn('Inactive user attempted to use API key', {
+      logger.logSecurity('Inactive user API key attempt', {
         userId: user.id,
-        username: user.username,
+        additionalInfo: {
+          username: user.username,
+          operation: 'api_key_validation',
+        },
       });
       return res.status(403).json({ message: 'Usuário inativo' });
     }
 
-    logger.info('API key validated successfully', {
+    logger.logSecurity('API key validated', {
       userId: user.id,
-      username: user.username,
-      role: user.role,
+      additionalInfo: {
+        username: user.username,
+        role: user.role,
+        operation: 'api_key_validation',
+      },
     });
 
     // nginx auth_request espera status 200 para autorizar
     return res.status(200).json({ message: 'API key válida' });
   } catch (error) {
-    logger.error('Error validating API key:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SECURITY,
+      additionalInfo: {
+        operation: 'api_key_validation',
+      },
+    });
     return res.status(500).json({ message: 'Erro ao validar API key' });
   }
 };
@@ -293,9 +347,12 @@ export const getApiKeyHistory = async (req: Request, res: Response) => {
       isActive: !entry.revoked_at,
     }));
 
-    logger.info('Retrieved API key history', {
+    logger.logAccess('API key history retrieved', {
       userId: req.user.userId,
-      entriesCount: history.length,
+      additionalInfo: {
+        entriesCount: history.length,
+        operation: 'api_key_history',
+      },
     });
 
     const response: ApiKeyHistoryResponse = {
@@ -305,10 +362,13 @@ export const getApiKeyHistory = async (req: Request, res: Response) => {
 
     return res.json(response);
   } catch (error) {
-    logger.error('Error retrieving API key history:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SECURITY,
       userId: req.user.userId,
       requestId: req.requestId,
+      additionalInfo: {
+        operation: 'api_key_history_retrieval',
+      },
     });
     throw ApiError.internal('Erro ao buscar histórico de API keys');
   }

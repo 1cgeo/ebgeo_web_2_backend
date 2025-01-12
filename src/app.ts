@@ -12,6 +12,7 @@ import geographicRoutes from './features/geographic/geographic.routes.js';
 import catalog3dRoutes from './features/catalog3d/catalog3d.routes.js';
 import groupsRoutes from './features/groups/groups.routes.js';
 import authRoutes from './features/auth/auth.routes.js';
+import adminRoutes from './features/admin/admin.routes.js';
 
 import { errorHandler } from './common/middleware/errorHandler.js';
 import { requestLogger } from './common/middleware/requestLogger.js';
@@ -22,7 +23,7 @@ import {
 } from './features/auth/auth.middleware.js';
 import { ApiError } from './common/errors/apiError.js';
 import { db } from './common/config/database.js';
-import logger from './common/config/logger.js';
+import logger, { LogCategory } from './common/config/logger.js';
 
 import {
   sanitizeInputs,
@@ -32,32 +33,20 @@ import {
 const app = express();
 
 app.use(helmet(envManager.getHelmetConfig()));
-
 const corsConfig = envManager.getCorsConfig();
 app.use(cors(corsConfig));
-
-// Parsing de cookies
 app.use(cookieParser());
-
-// Compressão
 app.use(compression());
-
-// Rate limiting global
 app.use(rateLimiter);
-
-// Parsing com limites
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 app.use(csrfProtection);
 
-// Logging
+// Logging e métricas
 app.use(requestLogger);
 
-// Sanitização global
+// Sanitização
 app.use(sanitizeInputs);
-
-// Sanitização específica para coordenadas
 app.use('/api/geographic', sanitizeGeoCoordinates);
 app.use('/api/identify', sanitizeGeoCoordinates);
 
@@ -71,6 +60,9 @@ app.use('/api/groups', groupsRoutes);
 app.use('/api/identify', identifyRoutes);
 app.use('/api/geographic', geographicRoutes);
 app.use('/api/catalog3d', catalog3dRoutes);
+
+// Rotas administrativas
+app.use('/api/admin', adminRoutes);
 
 // Rota de health check
 app.get('/health', async (_req: Request, res: Response) => {
@@ -86,9 +78,13 @@ app.get('/health', async (_req: Request, res: Response) => {
       database: 'connected',
     });
   } catch (err) {
-    logger.error('Health check failed:', {
-      error: err instanceof Error ? err.message : String(err),
-      timestamp: new Date().toISOString(),
+    logger.logError(err instanceof Error ? err : new Error(String(err)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        service: 'health-check',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+      },
     });
 
     res.status(503).json({
@@ -101,15 +97,17 @@ app.get('/health', async (_req: Request, res: Response) => {
 
 // Handler para rotas não encontradas
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  logger.warn(`Rota não encontrada: ${req.method} ${req.originalUrl}`, {
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
+  logger.logSecurity('Route not found', {
+    endpoint: `${req.method} ${req.originalUrl}`,
     requestId: req.id,
+    additionalInfo: {
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    },
   });
   next(ApiError.notFound(`Rota não encontrada: ${req.originalUrl}`));
 });
 
-// Error handling
 app.use(errorHandler);
 
 export default app;

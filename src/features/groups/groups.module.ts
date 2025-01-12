@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import {
   CreateGroupBody,
@@ -18,15 +18,17 @@ export const getUserGroups = async (req: Request, res: Response) => {
   try {
     const userGroups = await db.any(queries.GET_USER_GROUPS, [req.user.userId]);
 
-    logger.info('Retrieved user groups', {
+    logger.logAccess('Retrieved user groups', {
       userId: req.user.userId,
-      groupCount: userGroups.length,
+      additionalInfo: {
+        groupCount: userGroups.length,
+      },
     });
 
     return res.json(userGroups);
   } catch (error) {
-    logger.error('Error retrieving user groups:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
       userId: req.user.userId,
       requestId: req.requestId,
     });
@@ -64,16 +66,19 @@ export const createGroup = async (
       [name, description, req.user.userId],
     );
 
-    logger.info('New group created', {
-      groupId: newGroup.id,
-      createdBy: req.user.userId,
-      name: newGroup.name,
+    logger.logAccess('New group created', {
+      userId: req.user.userId,
+      additionalInfo: {
+        groupId: newGroup.id,
+        groupName: newGroup.name,
+      },
     });
 
     return res.status(201).json(newGroup);
   } catch (error) {
-    logger.error('Error creating group:', {
-      error,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/groups',
       userId: req.user.userId,
       requestId: req.requestId,
     });
@@ -149,19 +154,25 @@ export const updateGroup = async (
       updatedGroup = group;
     }
 
-    logger.info('Group updated', {
-      groupId,
-      updatedBy: req.user.userId,
-      updates: { name, description },
+    logger.logAccess('Group updated', {
+      userId: req.user.userId,
+      additionalInfo: {
+        groupId,
+        updates: { name, description },
+      },
     });
 
     return res.json(updatedGroup);
   } catch (error) {
-    logger.error('Error updating group:', {
-      error,
-      groupId,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/groups',
       userId: req.user.userId,
       requestId: req.requestId,
+      additionalInfo: {
+        groupId,
+        attemptedUpdates: { name, description },
+      },
     });
     throw error;
   }

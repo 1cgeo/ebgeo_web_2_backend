@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { Catalog3D, SearchResult } from './catalog3d.types.js';
 import { COUNT_CATALOG, SEARCH_CATALOG } from './catalog3d.queries.js';
 import { ApiError } from '../../common/errors/apiError.js';
@@ -32,16 +32,29 @@ export async function searchCatalog3D(req: Request, res: Response) {
       data,
     };
 
-    logger.info('Catalog3D search performed', {
-      query: q,
-      page,
-      nr_records,
-      resultsCount: data.length,
+    logger.logAccess('Catalog3D search performed', {
+      requestId: req.id,
+      additionalInfo: {
+        query: q,
+        pagination: {
+          page,
+          nr_records,
+          resultsCount: data.length,
+        },
+      },
     });
 
     return res.json(result);
   } catch (error) {
-    logger.error('Error in catalog3d search:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.API,
+      endpoint: '/catalog3d/catalogo3d',
+      requestId: req.id,
+      additionalInfo: {
+        query: q,
+        pagination: { page, nr_records },
+      },
+    });
     throw ApiError.internal('Erro ao processar busca no catálogo 3D');
   }
 }

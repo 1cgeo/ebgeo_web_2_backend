@@ -1,35 +1,46 @@
 import pgPromise from 'pg-promise';
 import { IInitOptions, IDatabase, IMain } from 'pg-promise';
-import logger from './logger.js';
+import logger, { LogCategory } from './logger.js';
 import { envManager } from './environment.js';
 
 const initOptions: IInitOptions = {
   error(error: any, e: any) {
     if (e.cn) {
-      logger.error('Database connection error:', {
-        error: error instanceof Error ? error : new Error(String(error)),
-        connectionDetails: {
-          host: e.cn.host,
-          port: e.cn.port,
-          database: e.cn.database,
+      logger.logError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          category: LogCategory.DB,
+          additionalInfo: {
+            connectionDetails: {
+              host: e.cn.host,
+              port: e.cn.port,
+              database: e.cn.database,
+            },
+          },
         },
-      });
+      );
     }
   },
   query(e: any) {
     if (envManager.isDevelopment()) {
-      logger.debug('Query:', {
-        query: e.query,
-        params: e.params,
+      logger.logPerformance('Query execution', {
+        category: LogCategory.DB,
         duration: e.duration,
+        additionalInfo: {
+          query: e.query,
+          params: e.params,
+        },
       });
     }
   },
   receive(data: any) {
     if (envManager.isDevelopment()) {
-      logger.debug('Query results:', {
-        rowCount: data.data?.length,
+      logger.logPerformance('Query results received', {
+        category: LogCategory.DB,
         duration: data.ctx?.query?.duration,
+        additionalInfo: {
+          rowCount: data.data?.length,
+        },
       });
     }
   },
@@ -61,20 +72,22 @@ export const db: IDatabase<any> = pgp(config);
 export async function testDatabaseConnection(): Promise<boolean> {
   try {
     await db.one('SELECT 1');
-    logger.info('Database connection successful', {
-      environment: envManager.getEnvironment(),
-      host: config.host,
-      database: config.database,
+    logger.logAccess('Database connection successful', {
+      category: LogCategory.DB,
+      additionalInfo: {
+        environment: envManager.getEnvironment(),
+        host: config.host,
+        database: config.database,
+      },
     });
     return true;
   } catch (error) {
-    if (error instanceof Error) {
-      logger.error('Database connection test failed:', { error });
-    } else {
-      logger.error('Database connection test failed with unknown error', {
-        error,
-      });
-    }
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.DB,
+      additionalInfo: {
+        operation: 'connection_test',
+      },
+    });
     return false;
   }
 }
@@ -83,9 +96,20 @@ export async function testDatabaseConnection(): Promise<boolean> {
 export async function closeDatabase(): Promise<void> {
   try {
     await pgp.end();
-    logger.info('Database connection closed');
+    logger.logAccess('Database connection closed', {
+      category: LogCategory.DB,
+      additionalInfo: {
+        environment: envManager.getEnvironment(),
+      },
+    });
   } catch (error) {
-    logger.error('Error closing database connection:', { error });
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.DB,
+      additionalInfo: {
+        operation: 'connection_close',
+        environment: envManager.getEnvironment(),
+      },
+    });
     throw error;
   }
 }
