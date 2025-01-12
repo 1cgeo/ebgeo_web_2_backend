@@ -27,6 +27,7 @@ export async function searchGeographicNames(req: Request, res: Response) {
       searchTerm,
       centerLat,
       centerLon,
+      req.user?.userId || null
     ]);
 
     logger.info('Geographic name search performed', {

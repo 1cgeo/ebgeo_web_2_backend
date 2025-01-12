@@ -1,33 +1,3 @@
-CREATE TABLE ng.nomes_geograficos (
-	id uuid NOT NULL DEFAULT uuid_generate_v4(),
-    nome VARCHAR(255) NOT NULL,
-    nome_unaccent TEXT GENERATED ALWAYS AS (unaccent(lower(nome))) STORED,
-    municipio VARCHAR(255),
-    estado VARCHAR(255),
-    tipo VARCHAR(255),
-    geom GEOMETRY(POINT, 4674) NOT NULL,
-	CONSTRAINT nomes_geograficos_pk PRIMARY KEY (id)
-);
-
-CREATE INDEX idx_geographic_features_geometry ON ng.nomes_geograficos USING GIST (geom);
-CREATE INDEX idx_nomes_geograficos_nome_unaccent ON ng.nomes_geograficos USING GIN (nome_unaccent gin_trgm_ops);
-
-CREATE TABLE ng.edificacoes (
-    id uuid NOT NULL DEFAULT uuid_generate_v4(),
-    nome VARCHAR(255),
-    municipio VARCHAR(255),
-    estado VARCHAR(255),
-    tipo VARCHAR(255),
-    altitude_base numeric,
-    altitude_topo numeric,
-    geom GEOMETRY(POLYGON, 4326) NOT NULL,
-    CONSTRAINT edificacoes_pk PRIMARY KEY (id),
-    CONSTRAINT chk_altitude_base_topo CHECK (altitude_base <= altitude_topo)
-);
-
-CREATE INDEX idx_edificacoes_geometry ON ng.edificacoes USING GIST (geom);
-CREATE INDEX idx_edificacoes_altitude ON ng.edificacoes (altitude_base, altitude_topo);
-
 CREATE TABLE ng.catalogo_3d (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,

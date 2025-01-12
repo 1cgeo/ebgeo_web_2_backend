@@ -21,6 +21,8 @@ CREATE TABLE ng.users (
     CONSTRAINT valid_role CHECK (role IN ('admin', 'user'))
 );
 
+CREATE INDEX idx_users_id_role ON ng.users(id, role);
+
 CREATE TABLE ng.groups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) UNIQUE NOT NULL,
@@ -43,6 +45,7 @@ CREATE TABLE ng.user_groups (
 
 CREATE INDEX idx_user_groups_user_id ON ng.user_groups(user_id);
 CREATE INDEX idx_user_groups_group_id ON ng.user_groups(group_id);
+CREATE INDEX idx_user_groups ON ng.user_groups(group_id, user_id);
 
 -- Função para atualizar timestamp de updated_at
 CREATE OR REPLACE FUNCTION ng.update_updated_at_column()
