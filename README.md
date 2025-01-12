@@ -1,12 +1,12 @@
 # EBGEO Backend
 
-Backend do sistema EBGEO para gerenciamento e busca de dados geoespaciais, incluindo edificações, nomes geográficos e catálogo 3D.
+Backend do sistema EBGEO para gerenciamento e busca de dados geoespaciais, nomes geográficos e catálogo modelos 3D.
 
 ## Funcionalidades
 
-- Busca de edificações próximas por coordenadas geográficas e altitude
 - Pesquisa de nomes geográficos com relevância baseada em similaridade e distância
 - Catálogo 3D com busca textual e paginação
+- Identifica feições em modelos 3D
 
 ## Pré-requisitos
 
@@ -133,13 +133,15 @@ Description: Atualiza um grupo existente
 ```
 
 
-### Edificações
+### Identificação de Modelos
+
 ```
-GET /api/buildings/feicoes
+GET /api/identify/feicoes
 Query params:
 - lat: latitude (obrigatório)
 - lon: longitude (obrigatório)
 - z: altitude (obrigatório)
+Description: Identifica modelo 3D na coordenada informada
 ```
 
 ### Nomes Geográficos
@@ -149,6 +151,18 @@ Query params:
 - q: termo de busca (obrigatório, mín. 3 caracteres)
 - lat: latitude (obrigatório)
 - lon: longitude (obrigatório)
+
+GET /api/geographic/zones/:zoneId/permissions
+Auth: Admin Only
+Description: Lista permissões de uma zona
+
+PUT /api/geographic/zones/:zoneId/permissions
+Auth: Admin Only
+Body: {
+  userIds?: string[],
+  groupIds?: string[]
+}
+Description: Atualiza permissões de uma zona
 ```
 
 ### Catálogo 3D
@@ -186,7 +200,7 @@ src/
 │   └── middleware/  # Middlewares Express
 ├── features/        # Módulos de funcionalidades
 │   ├── auth/        # Feature de autenticação
-│   ├── buildings/   # Feature de edificações
+│   ├── identify/   # Feature de identificação de modelos
 │   ├── geographic/  # Feature de nomes geográficos
 │   └── catalog3d/   # Feature de catálogo 3D
 ├── app.ts          # Configuração do Express
