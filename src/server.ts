@@ -11,8 +11,14 @@ import { validateEnvVariables } from './common/config/envValidation.js';
 import { envManager } from './common/config/environment.js';
 
 const numCPUs = os.cpus().length;
-const numWorkers = Math.min(Math.floor(numCPUs / 3), 8);
+const MAX_WORKERS = process.env.MAX_WORKERS
+  ? parseInt(process.env.MAX_WORKERS)
+  : 8;
+const numWorkers = Math.min(Math.floor(numCPUs / 3), MAX_WORKERS);
 const PORT = process.env.PORT || 3000;
+
+// Track server metrics
+const startTime = Date.now();
 
 async function startServer() {
   try {
@@ -57,6 +63,10 @@ async function startServer() {
         try {
           await db.$pool.end();
           logger.info('Database connections closed');
+
+          const uptime = Date.now() - startTime;
+          logger.info(`Server shutting down after ${uptime}ms uptime`);
+
           process.exit(0);
         } catch (error) {
           logger.error('Error during shutdown:', { error });
@@ -80,35 +90,51 @@ async function startServer() {
   }
 }
 
+// Initialize primary process
+async function initializePrimaryProcess() {
+  try {
+    // Start server for primary process
+    await startServer();
+
+    // Fork workers
+    for (let i = 0; i < numWorkers; i++) {
+      cluster.fork();
+    }
+
+    // Enhanced cluster event handling
+    cluster.on('fork', worker => {
+      logger.info(`Worker ${worker.process.pid} forked`);
+    });
+
+    cluster.on('online', worker => {
+      logger.info(`Worker ${worker.process.pid} is online`);
+    });
+
+    cluster.on('exit', (worker, code, signal) => {
+      if (signal) {
+        logger.info(
+          `Worker ${worker.process.pid} was killed by signal: ${signal}`,
+        );
+      } else if (code !== 0) {
+        logger.error(
+          `Worker ${worker.process.pid} exited with error code: ${code}`,
+        );
+        logger.info('Starting a new worker...');
+        cluster.fork();
+      } else {
+        logger.info(`Worker ${worker.process.pid} success!`);
+      }
+    });
+  } catch (error) {
+    logger.error('Primary process initialization failed:', { error });
+    process.exit(1);
+  }
+}
+
+// Main execution
 if (cluster.isPrimary) {
   logger.info(`Primary ${process.pid} is running`);
-
-  startServer()
-    .then(() => {
-      for (let i = 0; i < numWorkers; i++) {
-        cluster.fork();
-      }
-
-      cluster.on('exit', (worker, code, signal) => {
-        if (signal) {
-          logger.info(
-            `Worker ${worker.process.pid} was killed by signal: ${signal}`,
-          );
-        } else if (code !== 0) {
-          logger.error(
-            `Worker ${worker.process.pid} exited with error code: ${code}`,
-          );
-          logger.info('Starting a new worker...');
-          cluster.fork();
-        } else {
-          logger.info(`Worker ${worker.process.pid} success!`);
-        }
-      });
-    })
-    .catch(error => {
-      logger.error('Server initialization failed:', { error });
-      process.exit(1);
-    });
+  initializePrimaryProcess();
 } else {
   startServer();
 }

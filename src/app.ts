@@ -21,6 +21,8 @@ import {
   csrfProtection,
 } from './features/auth/auth.middleware.js';
 import { ApiError } from './common/errors/apiError.js';
+import { db } from './common/config/database.js';
+import logger from './common/config/logger.js';
 
 import {
   sanitizeInputs,
@@ -29,29 +31,7 @@ import {
 
 const app = express();
 
-// Configurações de segurança baseadas no ambiente
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-      },
-    },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true,
-    },
-    frameguard: {
-      action: 'deny',
-    },
-    noSniff: true,
-    xssFilter: true,
-  }),
-);
+app.use(helmet(envManager.getHelmetConfig()));
 
 const corsConfig = envManager.getCorsConfig();
 app.use(cors(corsConfig));
@@ -65,11 +45,11 @@ app.use(compression());
 // Rate limiting global
 app.use(rateLimiter);
 
-app.use(csrfProtection);
-
 // Parsing com limites
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.use(csrfProtection);
 
 // Logging
 app.use(requestLogger);
@@ -93,17 +73,39 @@ app.use('/api/geographic', geographicRoutes);
 app.use('/api/catalog3d', catalog3dRoutes);
 
 // Rota de health check
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: envManager.getEnvironment(),
-    https: envManager.useHttps(),
-  });
+app.get('/health', async (_req: Request, res: Response) => {
+  try {
+    await db.one('SELECT 1'); // Verificar conexão com banco
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: envManager.getEnvironment(),
+      https: envManager.useHttps(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      database: 'connected',
+    });
+  } catch (err) {
+    logger.error('Health check failed:', {
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+    });
+  }
 });
 
 // Handler para rotas não encontradas
 app.use((req: Request, _res: Response, next: NextFunction) => {
+  logger.warn(`Rota não encontrada: ${req.method} ${req.originalUrl}`, {
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+    requestId: req.id,
+  });
   next(ApiError.notFound(`Rota não encontrada: ${req.originalUrl}`));
 });
 

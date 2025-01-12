@@ -1,3 +1,5 @@
+import { HelmetOptions } from 'helmet';
+
 export type Environment = 'development' | 'production' | 'test';
 
 interface EnvironmentConfig {
@@ -20,6 +22,7 @@ interface EnvironmentConfig {
     maxConnections: number;
     idleTimeoutMillis: number;
   };
+  helmetConfig: HelmetOptions;
 }
 
 export class EnvironmentManager {
@@ -37,6 +40,67 @@ export class EnvironmentManager {
       EnvironmentManager.instance = new EnvironmentManager();
     }
     return EnvironmentManager.instance;
+  }
+
+  private buildHelmetConfig(isProduction: boolean): HelmetOptions {
+    const commonConfig = {
+      frameguard: {
+        action: 'deny' as const,
+      },
+      noSniff: true,
+      xssFilter: true,
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+    };
+
+    if (isProduction) {
+      return {
+        ...commonConfig,
+        contentSecurityPolicy: {
+          useDefaults: true,
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            imgSrc: ["'self'"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            formAction: ["'self'"],
+            upgradeInsecureRequests: [],
+          },
+        },
+        crossOriginEmbedderPolicy: true,
+        crossOriginOpenerPolicy: { policy: 'same-origin' as const },
+        crossOriginResourcePolicy: { policy: 'same-origin' as const },
+        dnsPrefetchControl: { allow: false },
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' as const },
+      };
+    }
+
+    // Configuração de desenvolvimento
+    return {
+      ...commonConfig,
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          connectSrc: ["'self'", 'ws:', 'wss:'],
+          fontSrc: ["'self'", 'data:'],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: false,
+    };
   }
 
   private buildConfig(): EnvironmentConfig {
@@ -70,6 +134,7 @@ export class EnvironmentManager {
         maxConnections: isProduction ? 20 : isDevelopment ? 10 : 5,
         idleTimeoutMillis: isProduction ? 30000 : isDevelopment ? 30000 : 10000,
       },
+      helmetConfig: this.buildHelmetConfig(isProduction),
     };
   }
 
@@ -103,6 +168,10 @@ export class EnvironmentManager {
 
   public getDbConfig() {
     return this.config.dbConfig;
+  }
+
+  public getHelmetConfig() {
+    return this.config.helmetConfig;
   }
 }
 

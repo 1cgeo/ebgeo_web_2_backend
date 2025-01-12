@@ -1,4 +1,5 @@
 // src/common/config/envValidation.ts
+import os from 'os';
 import { Environment } from './environment.js';
 
 interface ValidationError {
@@ -119,24 +120,6 @@ const validateSecurity = (environment: Environment): void => {
     });
   }
 
-  const cookieSecure = process.env.COOKIE_SECURE?.toLowerCase();
-  if (cookieSecure && !['true', 'false'].includes(cookieSecure)) {
-    errors.push({
-      context,
-      variable: 'COOKIE_SECURE',
-      message: 'Must be either "true" or "false"',
-    });
-  }
-
-  const cookieSameSite = process.env.COOKIE_SAME_SITE?.toLowerCase();
-  if (cookieSameSite && !['strict', 'lax', 'none'].includes(cookieSameSite)) {
-    errors.push({
-      context,
-      variable: 'COOKIE_SAME_SITE',
-      message: 'Must be one of: "strict", "lax", "none"',
-    });
-  }
-
   if (process.env.ALLOWED_ORIGINS) {
     const origins = process.env.ALLOWED_ORIGINS.split(',');
     origins.forEach((origin, index) => {
@@ -202,6 +185,25 @@ const validateGeneral = (): void => {
       variable: 'NODE_ENV',
       message: 'Must be one of: development, production, test',
     });
+  }
+
+  if (process.env.MAX_WORKERS) {
+    const maxWorkers = parseInt(process.env.MAX_WORKERS, 10);
+    const numCPUs = os.cpus().length;
+
+    if (isNaN(maxWorkers) || maxWorkers <= 0) {
+      errors.push({
+        context,
+        variable: 'MAX_WORKERS',
+        message: 'Must be a positive number',
+      });
+    } else if (maxWorkers > numCPUs) {
+      errors.push({
+        context,
+        variable: 'MAX_WORKERS',
+        message: `Cannot exceed number of available CPUs (${numCPUs})`,
+      });
+    }
   }
 };
 
