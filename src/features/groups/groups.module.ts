@@ -177,3 +177,129 @@ export const updateGroup = async (
     throw error;
   }
 };
+
+export async function listGroups(req: Request, res: Response) {
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
+
+  try {
+    const [groups, total] = await Promise.all([
+      db.any(queries.LIST_GROUPS, [limit, offset]),
+      db.one('SELECT COUNT(*) FROM ng.groups'),
+    ]);
+
+    return res.json({
+      groups,
+      total: Number(total.count),
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (error) {
+    logger.error('Error listing groups:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw ApiError.internal('Erro ao listar grupos');
+  }
+}
+
+export async function getGroupDetails(req: Request, res: Response) {
+  const { id } = req.params;
+
+  try {
+    const group = await db.one(queries.GET_GROUP_DETAILS, [id]);
+    return res.json(group);
+  } catch (error) {
+    logger.error('Error getting group details:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw ApiError.notFound('Grupo não encontrado');
+  }
+}
+
+export async function deleteGroup(req: Request, res: Response) {
+  const { id } = req.params;
+
+  try {
+    await db.tx(async t => {
+      // Verificar se grupo existe
+      const group = await t.oneOrNone(
+        'SELECT id FROM ng.groups WHERE id = $1',
+        [id],
+      );
+      if (!group) {
+        throw ApiError.notFound('Grupo não encontrado');
+      }
+
+      // Remover todas as permissões e relacionamentos
+      await t.batch([
+        t.none('DELETE FROM ng.model_group_permissions WHERE group_id = $1', [
+          id,
+        ]),
+        t.none('DELETE FROM ng.zone_group_permissions WHERE group_id = $1', [
+          id,
+        ]),
+        t.none('DELETE FROM ng.user_groups WHERE group_id = $1', [id]),
+        t.none('DELETE FROM ng.groups WHERE id = $1', [id]),
+      ]);
+    });
+
+    return res.json({ message: 'Grupo removido com sucesso' });
+  } catch (error) {
+    logger.error('Error deleting group:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw error;
+  }
+}
+
+export async function addGroupMembers(req: Request, res: Response) {
+  const { id } = req.params;
+  const { userIds } = req.body;
+
+  try {
+    // Verificar se grupo existe
+    const group = await db.oneOrNone('SELECT id FROM ng.groups WHERE id = $1', [
+      id,
+    ]);
+    if (!group) {
+      throw ApiError.notFound('Grupo não encontrado');
+    }
+
+    // Adicionar membros
+    await db.many(queries.ADD_GROUP_MEMBERS, [id, userIds, req.user?.userId]);
+
+    return res.json({ message: 'Membros adicionados com sucesso' });
+  } catch (error) {
+    logger.error('Error adding group members:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw error;
+  }
+}
+
+export async function removeGroupMember(req: Request, res: Response) {
+  const { id, userId } = req.params;
+
+  try {
+    const result = await db.result(
+      'DELETE FROM ng.user_groups WHERE group_id = $1 AND user_id = $2',
+      [id, userId],
+    );
+
+    if (result.rowCount === 0) {
+      throw ApiError.notFound('Usuário não encontrado no grupo');
+    }
+
+    return res.json({ message: 'Membro removido com sucesso' });
+  } catch (error) {
+    logger.error('Error removing group member:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw error;
+  }
+}

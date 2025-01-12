@@ -373,3 +373,148 @@ export const getApiKeyHistory = async (req: Request, res: Response) => {
     throw ApiError.internal('Erro ao buscar histórico de API keys');
   }
 };
+
+export async function getUserDetails(req: Request, res: Response) {
+  const { id } = req.params;
+
+  try {
+    const user = await db.one(queries.GET_USER_DETAILS, [id]);
+
+    // Remove a senha por segurança usando rest operator, com _ para indicar variável não usada
+    const { password: _, ...userWithoutPassword } = user;
+
+    logger.info('User details retrieved', {
+      category: LogCategory.ADMIN,
+      userId: id,
+    });
+
+    return res.json(userWithoutPassword);
+  } catch (error) {
+    logger.error('Error getting user details:', {
+      error,
+      category: LogCategory.ADMIN,
+    });
+    throw ApiError.notFound('Usuário não encontrado');
+  }
+}
+
+export async function updateUser(req: Request, res: Response) {
+  if (!req.user || req.user.role !== UserRole.ADMIN) {
+    throw ApiError.forbidden('Apenas administradores podem atualizar usuários');
+  }
+
+  const { id } = req.params;
+  const updateData = req.body;
+
+  try {
+    const result = await db.tx(async t => {
+      // Verificar se usuário existe
+      const existingUser = await t.oneOrNone(
+        'SELECT id, username, email, role, is_active FROM ng.users WHERE id = $1',
+        [id],
+      );
+
+      if (!existingUser) {
+        throw ApiError.notFound('Usuário não encontrado');
+      }
+
+      // Construir objeto de atualização
+      const updates = [];
+      const values = [id];
+      let paramCount = 2;
+
+      if (updateData.email) {
+        // Verificar se email já existe
+        const emailExists = await t.oneOrNone(
+          'SELECT id FROM ng.users WHERE email = $1 AND id != $2',
+          [updateData.email, id],
+        );
+        if (emailExists) {
+          throw ApiError.conflict('Email já está em uso');
+        }
+        updates.push(`email = $${paramCount}`);
+        values.push(updateData.email);
+        paramCount++;
+      }
+
+      if (updateData.username) {
+        // Verificar se username já existe
+        const usernameExists = await t.oneOrNone(
+          'SELECT id FROM ng.users WHERE username = $1 AND id != $2',
+          [updateData.username, id],
+        );
+        if (usernameExists) {
+          throw ApiError.conflict('Username já está em uso');
+        }
+        updates.push(`username = $${paramCount}`);
+        values.push(updateData.username);
+        paramCount++;
+      }
+
+      if (updateData.role) {
+        updates.push(`role = $${paramCount}`);
+        values.push(updateData.role);
+        paramCount++;
+      }
+
+      if (typeof updateData.isActive === 'boolean') {
+        updates.push(`is_active = $${paramCount}`);
+        values.push(updateData.isActive);
+        paramCount++;
+      }
+
+      if (updateData.password) {
+        const hashedPassword = await bcrypt.hash(
+          addPepper(updateData.password),
+          10,
+        );
+        updates.push(`password = $${paramCount}`);
+        values.push(hashedPassword);
+        paramCount++;
+      }
+
+      if (updates.length === 0) {
+        throw ApiError.badRequest('Nenhum dado para atualizar');
+      }
+
+      // Adicionar timestamp de atualização
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+
+      // Executar atualização
+      const updatedUser = await t.one(
+        `
+        UPDATE ng.users 
+        SET ${updates.join(', ')}
+        WHERE id = $1
+        RETURNING id, username, email, role, is_active, updated_at
+        `,
+        values,
+      );
+
+      return updatedUser;
+    });
+
+    logger.logSecurity('User updated', {
+      userId: req.user.userId,
+      requestId: req.requestId,
+      additionalInfo: {
+        updatedUserId: id,
+        changedFields: Object.keys(updateData),
+      },
+    });
+
+    return res.json(result);
+  } catch (error) {
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.ADMIN,
+      userId: req.user.userId,
+      requestId: req.requestId,
+      additionalInfo: {
+        operation: 'user_update',
+        targetUserId: id,
+        attemptedChanges: updateData,
+      },
+    });
+    throw error;
+  }
+}

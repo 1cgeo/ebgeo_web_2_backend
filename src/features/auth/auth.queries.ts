@@ -50,3 +50,36 @@ export const UPDATE_USER_LAST_LOGIN = `
   SET last_login = CURRENT_TIMESTAMP 
   WHERE id = $1;
 `;
+
+// Query para obter detalhes completos do usuário
+export const GET_USER_DETAILS = `
+  WITH user_groups AS (
+    SELECT 
+      g.id,
+      g.name,
+      ug.added_at,
+      creator.username as added_by
+    FROM ng.user_groups ug
+    JOIN ng.groups g ON g.id = ug.group_id
+    JOIN ng.users creator ON ug.added_by = creator.id
+    WHERE ug.user_id = $1
+  ),
+  api_key_history AS (
+    SELECT 
+      api_key,
+      created_at,
+      revoked_at,
+      revoked_by
+    FROM ng.api_key_history
+    WHERE user_id = $1
+  )
+  SELECT 
+    u.*,
+    json_agg(DISTINCT g.*) as groups,
+    json_agg(DISTINCT ak.*) as api_key_history
+  FROM ng.users u
+  LEFT JOIN user_groups g ON true
+  LEFT JOIN api_key_history ak ON true
+  WHERE u.id = $1
+  GROUP BY u.id;
+`;

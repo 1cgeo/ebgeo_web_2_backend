@@ -1,4 +1,4 @@
-import { body, ValidationChain } from 'express-validator';
+import { body, ValidationChain, param } from 'express-validator';
 import { UserRole } from './auth.types.js';
 
 export const loginValidation: ValidationChain[] = [
@@ -64,4 +64,44 @@ export const createUserValidation: ValidationChain[] = [
     .withMessage('Role é obrigatória')
     .isIn(Object.values(UserRole))
     .withMessage('Role inválida'),
+];
+
+export const updateUserValidation: ValidationChain[] = [
+  param('id').isUUID().withMessage('ID do usuário inválido'),
+
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Email inválido')
+    .isLength({ max: 255 })
+    .withMessage('Email deve ter no máximo 255 caracteres'),
+
+  body('role')
+    .optional()
+    .isIn(Object.values(UserRole))
+    .withMessage('Role deve ser admin ou user'),
+
+  body('isActive')
+    .optional()
+    .isBoolean()
+    .withMessage('isActive deve ser um booleano'),
+
+  body('password')
+    .optional()
+    .isString()
+    .isLength({ min: 8 })
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .withMessage(
+      'Senha deve conter pelo menos 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais',
+    ),
+
+  body('username')
+    .optional()
+    .isString()
+    .isLength({ min: 3, max: 50 })
+    .matches(/^[a-zA-Z0-9_.-]+$/)
+    .withMessage(
+      'Username deve conter apenas letras, números, underscore, ponto e hífen',
+    ),
 ];

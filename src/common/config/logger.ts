@@ -12,6 +12,7 @@ export enum LogCategory {
   PERFORMANCE = 'PERFORMANCE',
   SYSTEM = 'SYSTEM',
   ACCESS = 'ACCESS',
+  ADMIN = 'ADMIN',
 }
 
 // Interface para log estruturado

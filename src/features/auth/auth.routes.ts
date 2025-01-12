@@ -7,11 +7,17 @@ import {
   createUser,
   validateApiKeyRequest,
   getApiKeyHistory,
+  getUserDetails,
+  updateUser,
 } from './auth.module.js';
 import { authenticateRequest, authorize } from './auth.middleware.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from './auth.types.js';
-import { loginValidation, createUserValidation } from './auth.validation.js';
+import {
+  loginValidation,
+  createUserValidation,
+  updateUserValidation,
+} from './auth.validation.js';
 
 const router = Router();
 
@@ -51,6 +57,19 @@ router.get(
   '/api-key/history',
   authorize([UserRole.USER, UserRole.ADMIN]),
   asyncHandler(getApiKeyHistory),
+);
+
+router.get(
+  '/users/:id',
+  authorize([UserRole.ADMIN]),
+  asyncHandler(getUserDetails),
+);
+
+router.put(
+  '/users/:id',
+  authorize([UserRole.ADMIN]),
+  updateUserValidation,
+  asyncHandler(updateUser),
 );
 
 export default router;
