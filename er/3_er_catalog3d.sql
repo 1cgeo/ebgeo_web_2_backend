@@ -28,6 +28,10 @@ CREATE TABLE ng.catalogo_3d (
 CREATE INDEX idx_catalogo_3d_data_criacao ON ng.catalogo_3d (data_criacao DESC);
 CREATE INDEX idx_catalogo_3d_search_vector ON ng.catalogo_3d USING GIN (search_vector);
 CREATE INDEX idx_catalogo_3d_access_level ON ng.catalogo_3d(id, access_level);
+CREATE INDEX idx_catalogo_3d_search_date ON ng.catalogo_3d 
+USING GIN(search_vector, data_carregamento DESC);
+CREATE INDEX idx_catalogo_3d_access ON ng.catalogo_3d(access_level);
+CREATE INDEX idx_catalogo_3d_date ON ng.catalogo_3d(data_carregamento DESC);
 
 CREATE OR REPLACE FUNCTION ng.catalogo_3d_search_vector_update() RETURNS trigger AS $$
 BEGIN
