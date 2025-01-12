@@ -1,103 +1,235 @@
-export function validateDBEnvVariables(): void {
-  const requiredEnvVars = [
-    'DB_HOST',
-    'DB_PORT',
-    'DB_NAME',
-    'DB_USER',
-    'DB_PASSWORD',
-  ];
+// src/common/config/envValidation.ts
+import { Environment } from './environment.js';
 
-  const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+interface ValidationError {
+  variable: string;
+  message: string;
+  context: string;
+}
 
-  if (missingVars.length > 0) {
-    throw new Error(
-      `Missing required database environment variables: ${missingVars.join(', ')}`,
+class EnvValidationError extends Error {
+  errors: ValidationError[];
+
+  constructor(errors: ValidationError[]) {
+    const errorsByContext = errors.reduce(
+      (acc: { [key: string]: string[] }, error) => {
+        if (!acc[error.context]) {
+          acc[error.context] = [];
+        }
+        acc[error.context].push(`${error.variable}: ${error.message}`);
+        return acc;
+      },
+      {},
     );
-  }
 
-  // Validar se DB_PORT é um número válido
-  const dbPort = Number(process.env.DB_PORT);
-  if (isNaN(dbPort)) {
-    throw new Error('DB_PORT must be a valid number');
+    const message = Object.entries(errorsByContext)
+      .map(([context, errors]) => `${context}:\n  - ${errors.join('\n  - ')}`)
+      .join('\n');
+
+    super(`Environment validation failed:\n${message}`);
+    this.name = 'EnvValidationError';
+    this.errors = errors;
   }
 }
 
-export function validateAuthEnvVariables(): void {
-  const requiredAuthVars = [
-    'PORT',
-    'JWT_SECRET',
-    'CSRF_SECRET',
-    'PASSWORD_PEPPER',
-    'COOKIE_SECURE',
-    'COOKIE_SAME_SITE',
-  ];
-
-  const missingVars = requiredAuthVars.filter(envVar => !process.env[envVar]);
-
-  if (missingVars.length > 0) {
-    throw new Error(
-      `Missing required authentication variables: ${missingVars.join(', ')}`,
-    );
+// Funções utilitárias de validação
+const validateUrl = (url: string): boolean => {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
   }
+};
 
-  const port = Number(process.env.PORT);
-  if (isNaN(port)) {
-    throw new Error('PORT must be a valid number');
+const validatePort = (port: string | undefined): boolean => {
+  if (!port) return false;
+  const portNum = parseInt(port, 10);
+  return !isNaN(portNum) && portNum > 0 && portNum <= 65535;
+};
+
+const validateSecretLength = (
+  secret: string | undefined,
+  minLength: number,
+): boolean => {
+  return !!secret && secret.length >= minLength;
+};
+
+// Coletor de erros - usado internamente pelas funções de validação
+const errors: ValidationError[] = [];
+
+// Funções de validação por contexto
+const validateDatabase = (): void => {
+  const context = 'Database Configuration';
+
+  ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].forEach(
+    varName => {
+      if (!process.env[varName]) {
+        errors.push({
+          context,
+          variable: varName,
+          message: 'Required variable is missing',
+        });
+      }
+    },
+  );
+
+  if (process.env.DB_PORT && !validatePort(process.env.DB_PORT)) {
+    errors.push({
+      context,
+      variable: 'DB_PORT',
+      message: 'Must be a valid port number (1-65535)',
+    });
   }
+};
 
-  const pepper = process.env.PASSWORD_PEPPER;
-  if (pepper && pepper.length < 32) {
-    throw new Error('PASSWORD_PEPPER must be at least 32 characters long');
+const validateAuthentication = (): void => {
+  const context = 'Authentication Configuration';
+  const MIN_SECRET_LENGTH = 32;
+
+  ['JWT_SECRET', 'CSRF_SECRET', 'PASSWORD_PEPPER'].forEach(varName => {
+    if (!process.env[varName]) {
+      errors.push({
+        context,
+        variable: varName,
+        message: 'Required variable is missing',
+      });
+    } else if (!validateSecretLength(process.env[varName], MIN_SECRET_LENGTH)) {
+      errors.push({
+        context,
+        variable: varName,
+        message: `Must be at least ${MIN_SECRET_LENGTH} characters long`,
+      });
+    }
+  });
+};
+
+const validateSecurity = (environment: Environment): void => {
+  const context = 'Security Configuration';
+
+  if (environment === 'production') {
+    ['SSL_KEY_PATH', 'SSL_CERT_PATH'].forEach(varName => {
+      if (!process.env[varName]) {
+        errors.push({
+          context,
+          variable: varName,
+          message: 'Required in production environment',
+        });
+      }
+    });
   }
 
   const cookieSecure = process.env.COOKIE_SECURE?.toLowerCase();
   if (cookieSecure && !['true', 'false'].includes(cookieSecure)) {
-    throw new Error('COOKIE_SECURE must be either "true" or "false"');
+    errors.push({
+      context,
+      variable: 'COOKIE_SECURE',
+      message: 'Must be either "true" or "false"',
+    });
   }
 
   const cookieSameSite = process.env.COOKIE_SAME_SITE?.toLowerCase();
   if (cookieSameSite && !['strict', 'lax', 'none'].includes(cookieSameSite)) {
-    throw new Error('COOKIE_SAME_SITE must be one of: "strict", "lax", "none"');
+    errors.push({
+      context,
+      variable: 'COOKIE_SAME_SITE',
+      message: 'Must be one of: "strict", "lax", "none"',
+    });
   }
 
-  // Se COOKIE_SAME_SITE é 'none', COOKIE_SECURE deve ser 'true'
-  if (cookieSameSite === 'none' && cookieSecure !== 'true') {
-    throw new Error(
-      'When COOKIE_SAME_SITE is "none", COOKIE_SECURE must be "true"',
-    );
+  if (process.env.ALLOWED_ORIGINS) {
+    const origins = process.env.ALLOWED_ORIGINS.split(',');
+    origins.forEach((origin, index) => {
+      if (!validateUrl(origin)) {
+        errors.push({
+          context,
+          variable: 'ALLOWED_ORIGINS',
+          message: `Invalid URL at position ${index + 1}: ${origin}`,
+        });
+      }
+    });
   }
+};
 
-  // Validar origens permitidas
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-  const invalidOrigins = allowedOrigins.filter(origin => {
-    try {
-      new URL(origin);
-      return false;
-    } catch {
-      return true;
+const validateRateLimit = (): void => {
+  const context = 'Rate Limiting Configuration';
+
+  if (process.env.RATE_LIMIT_WINDOW_MS) {
+    const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10);
+    if (isNaN(windowMs) || windowMs <= 0) {
+      errors.push({
+        context,
+        variable: 'RATE_LIMIT_WINDOW_MS',
+        message: 'Must be a positive number',
+      });
     }
-  });
-
-  if (invalidOrigins.length > 0) {
-    throw new Error(
-      `Invalid origins in ALLOWED_ORIGINS: ${invalidOrigins.join(', ')}`,
-    );
   }
 
-  // Validar configurações de rate limit
-  const rateLimitWindow = Number(process.env.RATE_LIMIT_WINDOW_MS);
-  if (process.env.RATE_LIMIT_WINDOW_MS && isNaN(rateLimitWindow)) {
-    throw new Error('RATE_LIMIT_WINDOW_MS must be a valid number');
+  if (process.env.RATE_LIMIT_MAX_REQUESTS) {
+    const maxRequests = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10);
+    if (isNaN(maxRequests) || maxRequests <= 0) {
+      errors.push({
+        context,
+        variable: 'RATE_LIMIT_MAX_REQUESTS',
+        message: 'Must be a positive number',
+      });
+    }
+  }
+};
+
+const validateGeneral = (): void => {
+  const context = 'General Configuration';
+
+  if (!validatePort(process.env.PORT)) {
+    errors.push({
+      context,
+      variable: 'PORT',
+      message: 'Must be a valid port number (1-65535)',
+    });
   }
 
-  const rateLimitMax = Number(process.env.RATE_LIMIT_MAX_REQUESTS);
-  if (process.env.RATE_LIMIT_MAX_REQUESTS && isNaN(rateLimitMax)) {
-    throw new Error('RATE_LIMIT_MAX_REQUESTS must be a valid number');
+  const validEnvironments: Environment[] = [
+    'development',
+    'production',
+    'test',
+  ];
+  if (
+    process.env.NODE_ENV &&
+    !validEnvironments.includes(process.env.NODE_ENV as Environment)
+  ) {
+    errors.push({
+      context,
+      variable: 'NODE_ENV',
+      message: 'Must be one of: development, production, test',
+    });
   }
-}
+};
 
-// Função para validar todas as variáveis de ambiente
+// Função principal de validação
 export function validateEnvVariables(): void {
-  validateDBEnvVariables();
-  validateAuthEnvVariables();
+  // Limpar erros anteriores
+  errors.length = 0;
+
+  const environment = (process.env.NODE_ENV as Environment) || 'development';
+
+  // Executar todas as validações
+  validateGeneral();
+  validateDatabase();
+  validateAuthentication();
+  validateSecurity(environment);
+  validateRateLimit();
+
+  // Se houver erros, lançar exceção com todos eles
+  if (errors.length > 0) {
+    throw new EnvValidationError(errors);
+  }
 }
+
+// Exportar também as funções individuais para casos específicos
+export const validators = {
+  validateDatabase,
+  validateAuthentication,
+  validateSecurity,
+  validateRateLimit,
+  validateGeneral,
+};

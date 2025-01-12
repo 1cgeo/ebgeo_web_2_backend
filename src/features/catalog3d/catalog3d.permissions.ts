@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ITask } from 'pg-promise';
 import { db } from '../../common/config/database.js';
 import logger from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
@@ -50,6 +51,46 @@ export async function listModelPermissions(req: Request, res: Response) {
   }
 }
 
+async function updateUserPermissions(
+  t: ITask<any>,
+  modelId: string,
+  userIds: string[],
+) {
+  // Deletar permissões existentes
+  await t.none('DELETE FROM ng.model_permissions WHERE model_id = $1', [
+    modelId,
+  ]);
+
+  // Se houver novos IDs, inserir um por um de forma segura
+  if (userIds.length > 0) {
+    await t.none(
+      `INSERT INTO ng.model_permissions (model_id, user_id)
+       SELECT $1, unnest($2::uuid[])`,
+      [modelId, userIds],
+    );
+  }
+}
+
+async function updateGroupPermissions(
+  t: ITask<any>,
+  modelId: string,
+  groupIds: string[],
+) {
+  // Deletar permissões existentes
+  await t.none('DELETE FROM ng.model_group_permissions WHERE model_id = $1', [
+    modelId,
+  ]);
+
+  // Se houver novos IDs, inserir um por um de forma segura
+  if (groupIds.length > 0) {
+    await t.none(
+      `INSERT INTO ng.model_group_permissions (model_id, group_id)
+       SELECT $1, unnest($2::uuid[])`,
+      [modelId, groupIds],
+    );
+  }
+}
+
 export async function updateModelPermissions(req: Request, res: Response) {
   if (!req.user || req.user.role !== UserRole.ADMIN) {
     throw ApiError.forbidden(
@@ -71,37 +112,14 @@ export async function updateModelPermissions(req: Request, res: Response) {
         );
       }
 
-      // Atualizar permissões de usuários
+      // Atualizar permissões de usuários se fornecido
       if (userIds) {
-        await t.none('DELETE FROM ng.model_permissions WHERE model_id = $1', [
-          modelId,
-        ]);
-        if (userIds.length > 0) {
-          const values = userIds
-            .map((userId: string) => `(${modelId}, ${userId})`)
-            .join(',');
-          await t.none(`
-            INSERT INTO ng.model_permissions (model_id, user_id)
-            VALUES ${values}
-          `);
-        }
+        await updateUserPermissions(t, modelId, userIds);
       }
 
-      // Atualizar permissões de grupos
+      // Atualizar permissões de grupos se fornecido
       if (groupIds) {
-        await t.none(
-          'DELETE FROM ng.model_group_permissions WHERE model_id = $1',
-          [modelId],
-        );
-        if (groupIds.length > 0) {
-          const values = groupIds
-            .map((groupId: string) => `(${modelId}, ${groupId})`)
-            .join(',');
-          await t.none(`
-            INSERT INTO ng.model_group_permissions (model_id, group_id)
-            VALUES ${values}
-          `);
-        }
+        await updateGroupPermissions(t, modelId, groupIds);
       }
     });
 

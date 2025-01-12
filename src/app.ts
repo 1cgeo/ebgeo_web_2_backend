@@ -1,3 +1,4 @@
+// src/app.ts
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -5,6 +6,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import 'dotenv/config';
 
+import { envManager } from './common/config/environment.js';
 import buildingRoutes from './features/buildings/building.routes.js';
 import geographicRoutes from './features/geographic/geographic.routes.js';
 import catalog3dRoutes from './features/catalog3d/catalog3d.routes.js';
@@ -27,22 +29,32 @@ import {
 
 const app = express();
 
-// Configuração de CORS
-const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
-  credentials: true, // Necessário para cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-API-Key',
-    'X-CSRF-Token',
-  ],
-};
+// Configurações de segurança baseadas no ambiente
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: {
+      action: 'deny',
+    },
+    noSniff: true,
+    xssFilter: true,
+  }),
+);
 
-// Middlewares de segurança
-app.use(helmet());
-app.use(cors(corsOptions));
+const corsConfig = envManager.getCorsConfig();
+app.use(cors(corsConfig));
 
 // Parsing de cookies
 app.use(cookieParser());
@@ -76,15 +88,18 @@ app.use('/api/auth', authRoutes);
 app.use(authenticateRequest);
 
 app.use('/api/groups', groupsRoutes);
-
-// Rotas das features com prefixos apropriados
 app.use('/api/buildings', buildingRoutes);
 app.use('/api/geographic', geographicRoutes);
 app.use('/api/catalog3d', catalog3dRoutes);
 
 // Rota de health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: envManager.getEnvironment(),
+    https: envManager.useHttps(),
+  });
 });
 
 // Handler para rotas não encontradas

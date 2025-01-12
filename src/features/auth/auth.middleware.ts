@@ -1,3 +1,4 @@
+// src/features/auth/auth.middleware.ts
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
@@ -10,6 +11,7 @@ import { ApiError } from '../../common/errors/apiError.js';
 import { db } from '../../common/config/database.js';
 import { GET_USER_BY_API_KEY } from './auth.queries.js';
 import logger from '../../common/config/logger.js';
+import { envManager } from '../../common/config/environment.js';
 
 // Estender a interface Request do Express
 declare global {
@@ -27,20 +29,20 @@ const JWT_EXPIRY = '15m';
 
 // Rate limiting configuration
 export const rateLimiter = rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // default 15 minutes
-  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // default 100 requests per window
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// CSRF Protection
+// CSRF Protection with environment-based config
+const cookieConfig = envManager.getCookieConfig();
 export const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite:
-      (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'strict',
+    secure: cookieConfig.secure,
+    sameSite: cookieConfig.sameSite,
   },
 });
 
@@ -50,36 +52,28 @@ export const authenticateRequest = async (
   res: Response,
   next: NextFunction,
 ) => {
-  // Generate unique request ID for tracking
   req.requestId = uuidv4();
 
   try {
-    // Check for API key in multiple locations
     const apiKey =
       req.query['api_key']?.toString() || req.headers['x-api-key']?.toString();
 
-    // Check for JWT token
     const authHeader = req.headers['authorization'];
     const token =
       req.cookies?.token || (authHeader ? authHeader.split(' ')[1] : null);
 
     if (!token && !apiKey) {
-      // Mark as guest user
       req.userType = 'guest';
       req.user = undefined;
-
-      // Log guest request
       logger.info('Guest request received', {
         requestId: req.requestId,
         path: req.path,
         method: req.method,
         ip: req.ip,
       });
-
       return next();
     }
 
-    // Handle API key authentication
     if (apiKey) {
       const user = await db.oneOrNone(
         'SELECT id, username, role, is_active FROM ng.users WHERE api_key = $1 AND is_active = true',
@@ -94,8 +88,6 @@ export const authenticateRequest = async (
           apiKey: apiKey,
         };
         req.userType = 'authenticated';
-
-        // Log authenticated request via API key
         logger.info('API key authenticated request', {
           requestId: req.requestId,
           userId: user.id,
@@ -103,32 +95,26 @@ export const authenticateRequest = async (
           path: req.path,
           method: req.method,
         });
-
         return next();
       }
     }
 
-    // Handle JWT authentication
     if (token) {
       const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
       req.user = decoded;
       req.userType = 'authenticated';
 
-      // Check if token needs renewal (5 minutes to expiry)
       const tokenExp = (decoded as any).exp * 1000;
       if (tokenExp - Date.now() < 5 * 60 * 1000) {
         const newToken = generateToken(decoded);
         res.cookie('token', newToken, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite:
-            (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') ||
-            'strict',
+          secure: cookieConfig.secure,
+          sameSite: cookieConfig.sameSite,
           maxAge: 15 * 60 * 1000,
         });
       }
 
-      // Log authenticated request via JWT
       logger.info('JWT authenticated request', {
         requestId: req.requestId,
         userId: decoded.userId,
@@ -140,17 +126,14 @@ export const authenticateRequest = async (
       return next();
     }
 
-    // If no valid authentication found, mark as guest
     req.userType = 'guest';
     req.user = undefined;
-
     logger.info('Invalid authentication attempt', {
       requestId: req.requestId,
       path: req.path,
       method: req.method,
       ip: req.ip,
     });
-
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -162,6 +145,7 @@ export const authenticateRequest = async (
     next(error);
   }
 };
+
 // Role-based Authorization
 export function authorize<
   P = ParamsDictionary,

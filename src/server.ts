@@ -1,10 +1,14 @@
+// src/server.ts
 import cluster from 'cluster';
 import os from 'os';
+import https from 'https';
+import http from 'http';
+import fs from 'fs';
 import app from './app.js';
 import logger from './common/config/logger.js';
 import { db, testDatabaseConnection } from './common/config/database.js';
-import { validateDBEnvVariables } from './common/config/envValidation.js';
 import { validateEnvVariables } from './common/config/envValidation.js';
+import { envManager } from './common/config/environment.js';
 
 const numCPUs = os.cpus().length;
 const numWorkers = Math.min(Math.floor(numCPUs / 3), 8);
@@ -12,31 +16,47 @@ const PORT = process.env.PORT || 3000;
 
 async function startServer() {
   try {
-    // Validar variáveis de ambiente
-    validateDBEnvVariables();
+    // Validação única e centralizada de todas as variáveis de ambiente
     validateEnvVariables();
+    logger.info('Environment variables validated successfully');
 
     // Testar conexão com banco
     await testDatabaseConnection();
 
-    const server = app.listen(PORT, () => {
+    let server;
+
+    if (envManager.useHttps()) {
+      const httpsOptions = {
+        key: fs.readFileSync(process.env.SSL_KEY_PATH || ''),
+        cert: fs.readFileSync(process.env.SSL_CERT_PATH || ''),
+      };
+      server = https.createServer(httpsOptions, app);
+      logger.info('Starting server in HTTPS mode (Production)');
+    } else {
+      server = http.createServer(app);
+      logger.info('Starting server in HTTP mode (Development)');
+    }
+
+    server.listen(PORT, () => {
       logger.info(
         `Worker ${process.pid}: Geographic Names Service started on port ${PORT}`,
+        {
+          environment: envManager.getEnvironment(),
+          protocol: envManager.useHttps() ? 'https' : 'http',
+        },
       );
     });
 
-    // Graceful shutdown
+    // Graceful shutdown handler
     const shutdown = async () => {
       logger.info('Shutting down server...');
 
       server.close(async () => {
-        logger.info('HTTP server closed');
+        logger.info('HTTP/HTTPS server closed');
 
         try {
-          // Fechar conexão com banco
           await db.$pool.end();
           logger.info('Database connections closed');
-
           process.exit(0);
         } catch (error) {
           logger.error('Error during shutdown:', { error });
@@ -44,7 +64,6 @@ async function startServer() {
         }
       });
 
-      // Força o fechamento após 30s
       setTimeout(() => {
         logger.error(
           'Could not close connections in time, forcefully shutting down',
@@ -64,8 +83,7 @@ async function startServer() {
 if (cluster.isPrimary) {
   logger.info(`Primary ${process.pid} is running`);
 
-  // Testar banco antes de criar workers
-  testDatabaseConnection()
+  startServer()
     .then(() => {
       for (let i = 0; i < numWorkers; i++) {
         cluster.fork();
@@ -88,7 +106,7 @@ if (cluster.isPrimary) {
       });
     })
     .catch(error => {
-      logger.error('Database connection failed:', { error });
+      logger.error('Server initialization failed:', { error });
       process.exit(1);
     });
 } else {

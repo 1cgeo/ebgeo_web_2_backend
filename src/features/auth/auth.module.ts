@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../../common/config/database.js';
 import logger from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
+import { envManager } from '../../common/config/environment.js';
 import {
   UserRole,
   User,
@@ -55,10 +56,8 @@ export const login = async (req: LoginRequest, res: Response) => {
       throw ApiError.unauthorized('Usuário inativo');
     }
 
-    // Atualizar último login
     await db.none(queries.UPDATE_USER_LAST_LOGIN, [user.id]);
 
-    // Gerar token JWT
     const token = generateToken({
       userId: user.id,
       username: user.username,
@@ -66,11 +65,13 @@ export const login = async (req: LoginRequest, res: Response) => {
       apiKey: user.apiKey,
     });
 
-    // Definir cookie seguro
+    const cookieConfig = envManager.getCookieConfig();
+
+    // Definir cookie com configurações baseadas no ambiente
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === 'true',
-      sameSite: process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none',
+      secure: cookieConfig.secure,
+      sameSite: cookieConfig.sameSite,
       maxAge: 15 * 60 * 1000, // 15 minutos
     });
 
@@ -78,13 +79,13 @@ export const login = async (req: LoginRequest, res: Response) => {
       userId: user.id,
       username: user.username,
       requestId: req.requestId,
+      environment: envManager.getEnvironment(),
     });
 
-    // Retornar dados do usuário (sem senha)
     const { password: _, ...userWithoutPassword } = user;
     return res.json({
       user: userWithoutPassword,
-      token, // Opcional: retornar token no response
+      token,
     });
   } catch (error) {
     logger.error('Login error:', { error, username, requestId: req.requestId });
@@ -94,11 +95,13 @@ export const login = async (req: LoginRequest, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   try {
-    // Limpar cookie do token
+    const cookieConfig = envManager.getCookieConfig();
+
+    // Limpar cookie com configurações baseadas no ambiente
     res.clearCookie('token', {
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === 'true',
-      sameSite: process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none',
+      secure: cookieConfig.secure,
+      sameSite: cookieConfig.sameSite,
     });
 
     logger.info('User logged out', {

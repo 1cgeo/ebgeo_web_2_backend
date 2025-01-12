@@ -1,11 +1,7 @@
-// database.ts
 import pgPromise from 'pg-promise';
 import { IInitOptions, IDatabase, IMain } from 'pg-promise';
 import logger from './logger.js';
-import { validateDBEnvVariables } from './envValidation.js';
-
-// Validar variáveis de ambiente antes de configurar a conexão
-validateDBEnvVariables();
+import { envManager } from './environment.js';
 
 const initOptions: IInitOptions = {
   error(error: any, e: any) {
@@ -21,7 +17,7 @@ const initOptions: IInitOptions = {
     }
   },
   query(e: any) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (envManager.isDevelopment()) {
       logger.debug('Query:', {
         query: e.query,
         params: e.params,
@@ -30,10 +26,9 @@ const initOptions: IInitOptions = {
     }
   },
   receive(data: any) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (envManager.isDevelopment()) {
       logger.debug('Query results:', {
         rowCount: data.data?.length,
-        // Acessando duration de forma segura
         duration: data.ctx?.query?.duration,
       });
     }
@@ -42,24 +37,8 @@ const initOptions: IInitOptions = {
 
 const pgp: IMain = pgPromise(initOptions);
 
-// Configuração do pool de conexões baseada no ambiente
-const poolConfig = {
-  development: {
-    max: 10,
-    idleTimeoutMillis: 30000,
-  },
-  production: {
-    max: 20,
-    idleTimeoutMillis: 30000,
-    allowExitOnIdle: false,
-  },
-  test: {
-    max: 5,
-    idleTimeoutMillis: 10000,
-  },
-};
-
-const env = process.env.NODE_ENV || 'development';
+// Obter configurações de banco de dados baseadas no ambiente
+const dbConfig = envManager.getDbConfig();
 
 const config = {
   host: process.env.DB_HOST,
@@ -67,11 +46,9 @@ const config = {
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  ...poolConfig[env as keyof typeof poolConfig],
-  ssl:
-    process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
-      : false,
+  max: dbConfig.maxConnections,
+  idleTimeoutMillis: dbConfig.idleTimeoutMillis,
+  ssl: dbConfig.ssl,
   retry: {
     max: 3,
     interval: 1000,
@@ -84,7 +61,11 @@ export const db: IDatabase<any> = pgp(config);
 export async function testDatabaseConnection(): Promise<boolean> {
   try {
     await db.one('SELECT 1');
-    logger.info('Database connection successful');
+    logger.info('Database connection successful', {
+      environment: envManager.getEnvironment(),
+      host: config.host,
+      database: config.database,
+    });
     return true;
   } catch (error) {
     if (error instanceof Error) {

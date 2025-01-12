@@ -20,22 +20,23 @@ Backend do sistema EBGEO para gerenciamento e busca de dados geoespaciais, inclu
 Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
 
 ```env
-NODE_ENV=development
 PORT=3000
-
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=ebgeo
-DB_USER=seu_usuario
-DB_PASSWORD=sua_senha
+DB_NAME=ebgeo2_backend
+DB_USER=user_ebgeo2
+DB_PASSWORD=your_password
+NODE_ENV=development
 JWT_SECRET=seu-segredo-seguro
 CSRF_SECRET=outro-segredo-seguro
 PASSWORD_PEPPER=outro-segredo-seguro
 RATE_LIMIT_WINDOW_MS=900000  # 15 minutos
 RATE_LIMIT_MAX_REQUESTS=100
-COOKIE_SECURE=true
+COOKIE_SECURE=true  # Em produção
 COOKIE_SAME_SITE=strict
 ALLOWED_ORIGINS=http://localhost:3000,https://seu-frontend.com
+SSL_KEY_PATH=/path/to/your/private.key
+SSL_CERT_PATH=/path/to/your/certificate.crt
 ```
 
 ## Instalação e Execução

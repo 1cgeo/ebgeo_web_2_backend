@@ -114,32 +114,40 @@ export const updateGroup = async (
       }
     }
 
-    // Construir query de atualização dinamicamente
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
+    let updatedGroup;
 
-    if (name) {
-      updates.push(`name = $${paramCount}`);
-      values.push(name);
-      paramCount++;
-    }
-
-    if (description !== undefined) {
-      updates.push(`description = $${paramCount}`);
-      values.push(description);
-      paramCount++;
-    }
-
-    values.push(groupId);
-
-    const updatedGroup = await db.one(
-      `UPDATE ng.groups 
-         SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $${paramCount}
+    if (name !== undefined && description !== undefined) {
+      updatedGroup = await db.one(
+        `UPDATE ng.groups 
+         SET name = $1, 
+             description = $2, 
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3
          RETURNING id, name, description, updated_at`,
-      values,
-    );
+        [name, description, groupId],
+      );
+    } else if (name !== undefined) {
+      updatedGroup = await db.one(
+        `UPDATE ng.groups 
+         SET name = $1, 
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING id, name, description, updated_at`,
+        [name, groupId],
+      );
+    } else if (description !== undefined) {
+      updatedGroup = await db.one(
+        `UPDATE ng.groups 
+         SET description = $1, 
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING id, name, description, updated_at`,
+        [description, groupId],
+      );
+    } else {
+      // Se nenhum campo for fornecido, retornar o grupo sem modificações
+      updatedGroup = group;
+    }
 
     logger.info('Group updated', {
       groupId,
