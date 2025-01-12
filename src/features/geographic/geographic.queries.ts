@@ -25,7 +25,7 @@ export const GET_ZONE_PERMISSIONS = `
 `;
 
 export const SEARCH_GEOGRAPHIC_NAMES = `
-WITH RECURSIVE user_role AS (
+WITH user_role AS (
   SELECT EXISTS (
     SELECT 1 
     FROM ng.users u 

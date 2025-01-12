@@ -1,0 +1,56 @@
+import { Request, Response } from 'express';
+import { validationResult } from 'express-validator';
+import { db } from '../../common/config/database.js';
+import logger from '../../common/config/logger.js';
+import { Feature } from './identify.types.js';
+import { FIND_NEAREST_FEATURE } from './identify.queries.js';
+import { ApiError } from '../../common/errors/apiError.js';
+import { validateSpatialPoint } from './identify.validation.js';
+
+export async function findNearestFeature(req: Request, res: Response) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw ApiError.badRequest('Parâmetros inválidos', {
+      field: 'validation',
+      reason: 'Parâmetros inválidos',
+      value: errors.array(),
+    });
+  }
+
+  const lat = parseFloat(req.query.lat as string);
+  const lon = parseFloat(req.query.lon as string);
+  const z = parseFloat(req.query.z as string);
+  const userId = req.user?.userId;
+
+  if (!validateSpatialPoint(lat, lon, z)) {
+    throw ApiError.badRequest('Coordenadas espaciais inválidas');
+  }
+
+  try {
+    const result = await db.oneOrNone<Feature>(FIND_NEAREST_FEATURE, [
+      lon,
+      lat,
+      z,
+      userId,
+    ]);
+
+    logger.info('Feature search performed', {
+      coordinates: { lat, lon, z },
+      userId,
+      found: !!result,
+      featureId: result?.id,
+      modelId: result?.model_id,
+    });
+
+    if (!result) {
+      return res.json({
+        message: 'Nenhuma feição encontrada para as coordenadas fornecidas.',
+      });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    logger.error('Error in feature search:', { error });
+    throw ApiError.internal('Erro ao processar identificação de feição');
+  }
+}

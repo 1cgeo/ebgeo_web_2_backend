@@ -7,7 +7,7 @@ import cookieParser from 'cookie-parser';
 import 'dotenv/config';
 
 import { envManager } from './common/config/environment.js';
-import buildingRoutes from './features/buildings/building.routes.js';
+import identifyRoutes from './features/identify/identify.routes.js';
 import geographicRoutes from './features/geographic/geographic.routes.js';
 import catalog3dRoutes from './features/catalog3d/catalog3d.routes.js';
 import groupsRoutes from './features/groups/groups.routes.js';
@@ -79,7 +79,7 @@ app.use(sanitizeInputs);
 
 // Sanitização específica para coordenadas
 app.use('/api/geographic', sanitizeGeoCoordinates);
-app.use('/api/buildings', sanitizeGeoCoordinates);
+app.use('/api/identify', sanitizeGeoCoordinates);
 
 // Rotas de autenticação (não precisam de JWT)
 app.use('/api/auth', authRoutes);
@@ -88,7 +88,7 @@ app.use('/api/auth', authRoutes);
 app.use(authenticateRequest);
 
 app.use('/api/groups', groupsRoutes);
-app.use('/api/buildings', buildingRoutes);
+app.use('/api/identify', identifyRoutes);
 app.use('/api/geographic', geographicRoutes);
 app.use('/api/catalog3d', catalog3dRoutes);
 

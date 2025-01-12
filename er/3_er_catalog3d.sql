@@ -27,6 +27,7 @@ CREATE TABLE ng.catalogo_3d (
 
 CREATE INDEX idx_catalogo_3d_data_criacao ON ng.catalogo_3d (data_criacao DESC);
 CREATE INDEX idx_catalogo_3d_search_vector ON ng.catalogo_3d USING GIN (search_vector);
+CREATE INDEX idx_catalogo_3d_access_level ON ng.catalogo_3d(id, access_level);
 
 CREATE OR REPLACE FUNCTION ng.catalogo_3d_search_vector_update() RETURNS trigger AS $$
 BEGIN
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ng.model_permissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_model_permissions_user ON ng.model_permissions(user_id);
+CREATE INDEX idx_model_permissions ON ng.model_permissions(model_id, user_id);
 
 CREATE TABLE IF NOT EXISTS ng.model_group_permissions (
   model_id UUID REFERENCES ng.catalogo_3d(id) ON DELETE CASCADE,
@@ -59,3 +61,4 @@ CREATE TABLE IF NOT EXISTS ng.model_group_permissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_model_group_permissions_group ON ng.model_group_permissions(group_id);
+CREATE INDEX idx_model_group_permissions ON ng.model_group_permissions(model_id, group_id);
