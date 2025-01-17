@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
 import logger from '../config/logger.js';
-import { LogCategory } from '../config/logger.js';
 
 // Estender a interface Request do Express
 declare global {
@@ -13,36 +12,34 @@ declare global {
   }
 }
 
+// Lista de padrões de URL para ignorar no logging
+const IGNORED_PATHS = [
+  /\.(ico|png|jpg|jpeg|gif|svg|css|js|map)$/i,
+  /^\/favicon/,
+  /^\/static/,
+  /^\/assets/,
+  /^\/_next/,
+  /^\/api-docs.*\.(png|ico)$/,
+];
+
 export const requestLogger = (
   req: Request,
   res: Response,
   next: NextFunction,
 ): void => {
+  if (IGNORED_PATHS.some(pattern => pattern.test(req.path))) {
+    return next();
+  }
+
   // Adiciona ID único para rastreamento da request
   req.id = randomUUID();
   req.startTime = Date.now();
-
-  // Log da request com categoria API
-  logger.logRequest(req, {
-    category: LogCategory.API,
-    userId: req.user?.userId,
-    username: req.user?.username,
-    endpoint: req.path,
-  });
 
   // Log da response
   res.on('finish', () => {
     const duration = Date.now() - req.startTime;
 
-    // Log básico da response
-    logger.logResponse(res, duration, {
-      category: LogCategory.API,
-      userId: req.user?.userId,
-      username: req.user?.username,
-      endpoint: req.path,
-    });
-
-    // Log adicional de performance se a requisição for lenta
+    // Log de performance se a requisição for lenta
     if (duration > 1000) {
       // Threshold de 1 segundo
       logger.logPerformance('Slow request detected', {
@@ -64,13 +61,6 @@ export const requestLogger = (
         ip: req.ip,
       });
     }
-
-    // Métricas de request
-    logger.logMetric('request_duration', duration, {
-      endpoint: req.path,
-      method: req.method,
-      statusCode: res.statusCode,
-    });
   });
 
   next();

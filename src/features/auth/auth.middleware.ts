@@ -5,7 +5,6 @@ import { ParsedQs } from 'qs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { rateLimit } from 'express-rate-limit';
-import csrf from 'csurf';
 import { UserRole, JWTPayload } from './auth.types.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import { db } from '../../common/config/database.js';
@@ -35,18 +34,9 @@ export const rateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-// CSRF Protection with environment-based config
 const cookieConfig = envManager.getCookieConfig();
-export const csrfProtection = csrf({
-  cookie: {
-    httpOnly: true,
-    secure: cookieConfig.secure,
-    sameSite: cookieConfig.sameSite,
-  },
-});
 
-// Main authentication middleware
+// Middleware principal de autenticação
 export const authenticateRequest = async (
   req: Request,
   res: Response,
@@ -62,17 +52,10 @@ export const authenticateRequest = async (
     const token =
       req.cookies?.token || (authHeader ? authHeader.split(' ')[1] : null);
 
+    // Se não tem token nem apiKey, continua como guest
     if (!token && !apiKey) {
       req.userType = 'guest';
       req.user = undefined;
-      logger.logAccess('Guest request received', {
-        requestId: req.requestId,
-        additionalInfo: {
-          path: req.path,
-          method: req.method,
-          ip: req.ip,
-        },
-      });
       return next();
     }
 
@@ -90,15 +73,6 @@ export const authenticateRequest = async (
           apiKey: apiKey,
         };
         req.userType = 'authenticated';
-        logger.logAuth('API key authentication successful', {
-          userId: user.id,
-          requestId: req.requestId,
-          additionalInfo: {
-            username: user.username,
-            path: req.path,
-            method: req.method,
-          },
-        });
         return next();
       }
     }
@@ -118,30 +92,12 @@ export const authenticateRequest = async (
           maxAge: 15 * 60 * 1000,
         });
       }
-
-      logger.logAuth('JWT authentication successful', {
-        userId: decoded.userId,
-        requestId: req.requestId,
-        additionalInfo: {
-          username: decoded.username,
-          path: req.path,
-          method: req.method,
-        },
-      });
-
       return next();
     }
 
+    // Se chegou aqui com token/apiKey inválidos
     req.userType = 'guest';
     req.user = undefined;
-    logger.logSecurity('Invalid authentication attempt', {
-      requestId: req.requestId,
-      additionalInfo: {
-        path: req.path,
-        method: req.method,
-        ip: req.ip,
-      },
-    });
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {

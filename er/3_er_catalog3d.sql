@@ -28,19 +28,19 @@ CREATE TABLE ng.catalogo_3d (
 CREATE INDEX idx_catalogo_3d_data_criacao ON ng.catalogo_3d (data_criacao DESC);
 CREATE INDEX idx_catalogo_3d_search_vector ON ng.catalogo_3d USING GIN (search_vector);
 CREATE INDEX idx_catalogo_3d_access_level ON ng.catalogo_3d(id, access_level);
-CREATE INDEX idx_catalogo_3d_search_date ON ng.catalogo_3d 
-USING GIN(search_vector, data_carregamento DESC);
 CREATE INDEX idx_catalogo_3d_access ON ng.catalogo_3d(access_level);
 CREATE INDEX idx_catalogo_3d_date ON ng.catalogo_3d(data_carregamento DESC);
+CREATE INDEX idx_catalogo_3d_search_composite ON ng.catalogo_3d (data_carregamento DESC) 
+    WHERE search_vector IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION ng.catalogo_3d_search_vector_update() RETURNS trigger AS $$
 BEGIN
   NEW.search_vector :=
     setweight(to_tsvector('portuguese', COALESCE(NEW.name, '')), 'A') ||
-    setweight(to_tsvector('portuguese', COALESCE(array_to_string(NEW.palavras_chave, ' '), '')), 'A');
+    setweight(to_tsvector('portuguese', COALESCE(array_to_string(NEW.palavras_chave, ' '), '')), 'A') ||
     setweight(to_tsvector('portuguese', COALESCE(NEW.description, '')), 'B') ||
     setweight(to_tsvector('portuguese', COALESCE(NEW.municipio, '')), 'C') ||
-    setweight(to_tsvector('portuguese', COALESCE(NEW.estado, '')), 'D')
+    setweight(to_tsvector('portuguese', COALESCE(NEW.estado, '')), 'D');
   RETURN NEW;
 END
 $$ LANGUAGE plpgsql;
@@ -65,4 +65,4 @@ CREATE TABLE IF NOT EXISTS ng.model_group_permissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_model_group_permissions_group ON ng.model_group_permissions(group_id);
-CREATE INDEX idx_model_group_permissions ON ng.model_group_permissions(model_id, group_id);
+CREATE INDEX idx_model_permissions_group ON ng.model_group_permissions(model_id, group_id);

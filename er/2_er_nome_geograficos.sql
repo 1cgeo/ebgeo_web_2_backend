@@ -1,14 +1,20 @@
+CREATE OR REPLACE FUNCTION ng.unaccent_immutable(text) 
+RETURNS text AS
+$func$
+SELECT public.unaccent($1)
+$func$ LANGUAGE sql IMMUTABLE PARALLEL SAFE;
+
 CREATE TABLE ng.nomes_geograficos (
 	id uuid NOT NULL DEFAULT uuid_generate_v4(),
     nome VARCHAR(255) NOT NULL,
-    nome_unaccent TEXT GENERATED ALWAYS AS (unaccent(lower(nome))) STORED,
+    nome_unaccent TEXT GENERATED ALWAYS AS (ng.unaccent_immutable(lower(nome))) STORED,
     municipio VARCHAR(255),
     estado VARCHAR(255),
     tipo VARCHAR(255),
     access_level VARCHAR(20) NOT NULL DEFAULT 'public',
     geom GEOMETRY(POINT, 4674) NOT NULL,
 	CONSTRAINT nomes_geograficos_pk PRIMARY KEY (id),
-  CONSTRAINT valid_name_access_level CHECK (access_level IN ('public', 'private'));
+  CONSTRAINT valid_name_access_level CHECK (access_level IN ('public', 'private'))
 );
 
 CREATE INDEX idx_geographic_features_geometry ON ng.nomes_geograficos USING GIST (geom);

@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import 'dotenv/config';
+import { swaggerSpec, swaggerUi, swaggerUiOptions } from './docs/swagger.js';
 
 import { envManager } from './common/config/environment.js';
 import identifyRoutes from './features/identify/identify.routes.js';
@@ -19,7 +20,6 @@ import { requestLogger } from './common/middleware/requestLogger.js';
 import {
   authenticateRequest,
   rateLimiter,
-  csrfProtection,
 } from './features/auth/auth.middleware.js';
 import { ApiError } from './common/errors/apiError.js';
 import { db } from './common/config/database.js';
@@ -40,7 +40,6 @@ app.use(compression());
 app.use(rateLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(csrfProtection);
 
 // Logging e métricas
 app.use(requestLogger);
@@ -94,6 +93,9 @@ app.get('/health', async (_req: Request, res: Response) => {
     });
   }
 });
+
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // Handler para rotas não encontradas
 app.use((req: Request, _res: Response, next: NextFunction) => {

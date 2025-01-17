@@ -1,6 +1,6 @@
-# EBGEO Backend
+# EBGeo Backend
 
-Backend do sistema EBGEO para gerenciamento e busca de dados geoespaciais, nomes geográficos e catálogo modelos 3D.
+Backend do sistema EBGeo para gerenciamento e busca de dados geoespaciais, nomes geográficos e catálogo modelos 3D.
 
 ## Funcionalidades
 
@@ -13,7 +13,7 @@ Backend do sistema EBGEO para gerenciamento e busca de dados geoespaciais, nomes
 - Node.js >= 18.0.0
 - npm >= 8.0.0
 - PostgreSQL com extensão PostGIS
-- Database EBGEO configurada com as tabelas necessárias
+- Database EBGeo configurada com as tabelas necessárias
 
 ## Variáveis de Ambiente
 
@@ -29,7 +29,6 @@ DB_NAME=ebgeo2_backend
 DB_USER=user_ebgeo2
 DB_PASSWORD=your_password
 JWT_SECRET=seu-segredo-seguro
-CSRF_SECRET=outro-segredo-seguro
 PASSWORD_PEPPER=outro-segredo-seguro
 RATE_LIMIT_WINDOW_MS=900000  # 15 minutos
 RATE_LIMIT_MAX_REQUESTS=100
@@ -206,5 +205,5 @@ src/
 │   ├── geographic/  # Feature de nomes geográficos
 │   └── catalog3d/   # Feature de catálogo 3D
 ├── app.ts          # Configuração do Express
-└── server.ts       # Ponto de entrada da aplicação
+└── index.ts       # Ponto de entrada da aplicação
 ```

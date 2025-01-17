@@ -1,7 +1,20 @@
-import { pino } from 'pino';
-import { pinoCaller } from 'pino-caller';
-import { TransportTargetOptions } from 'pino';
+import { pino, LoggerOptions } from 'pino';
+import pinoCallerPkg from 'pino-caller';
+const { pinoCaller } = pinoCallerPkg;
 import fs from 'fs';
+
+export const IGNORED_PATHS = [
+  /\.(ico|png|jpg|jpeg|gif|svg|css|js|map)$/i,
+  /^\/favicon/,
+  /^\/static/,
+  /^\/assets/,
+  /^\/_next/,
+  /^\/api-docs.*\.(png|ico)$/,
+];
+
+export const shouldIgnorePath = (path: string): boolean => {
+  return IGNORED_PATHS.some(pattern => pattern.test(path));
+};
 
 // Definição das categorias de log
 export enum LogCategory {
@@ -68,146 +81,157 @@ function validateLogConfig(): void {
 // Executa validação na inicialização
 validateLogConfig();
 
-// Configurações de transporte baseadas no ambiente
-const transportTargets: TransportTargetOptions[] = [];
+// Configuração do logger
+const LOG_DIR = process.env.LOG_DIR || 'logs';
 
-// Configuração para desenvolvimento
-if (process.env.NODE_ENV !== 'production') {
-  transportTargets.push({
+const developmentConfig: LoggerOptions = {
+  level: 'debug',
+  base: {
+    env: process.env.NODE_ENV,
+    service: 'ebgeo-service',
+  },
+  transport: {
     target: 'pino-pretty',
-    level: 'debug',
     options: {
       colorize: true,
       translateTime: 'SYS:standard',
       ignore: 'pid,hostname',
-      messageFormat: '{category}: {msg}',
-      customPrettifiers: {
-        category: (category: string) => `[${category}]`.padEnd(10),
-      },
-    },
-  });
-}
-
-// Configurações de rotação e retenção de logs
-const LOG_RETENTION_DAYS = process.env.LOG_RETENTION_DAYS
-  ? parseInt(process.env.LOG_RETENTION_DAYS)
-  : 30;
-const LOG_DIR = process.env.LOG_DIR || 'logs';
-const MAX_FILE_SIZE = process.env.LOG_MAX_SIZE || '10m';
-
-// Configuração para produção com rotação avançada
-if (process.env.NODE_ENV === 'production') {
-  // Log principal da aplicação
-  transportTargets.push({
-    target: 'pino-roll',
-    level: 'info',
-    options: {
-      file: `${LOG_DIR}/app.log`,
-      frequency: 'daily',
-      size: MAX_FILE_SIZE,
-      mkdir: true,
-      maxFiles: LOG_RETENTION_DAYS,
-      compress: true,
-      dateFormat: 'YYYY-MM-DD',
-      syncTimeout: 0,
-    },
-  });
-
-  // Log separado para erros
-  transportTargets.push({
-    target: 'pino-roll',
-    level: 'error',
-    options: {
-      file: `${LOG_DIR}/error.log`,
-      frequency: 'daily',
-      size: MAX_FILE_SIZE,
-      mkdir: true,
-      maxFiles: LOG_RETENTION_DAYS,
-      compress: true,
-      dateFormat: 'YYYY-MM-DD',
-      syncTimeout: 0,
-    },
-  });
-
-  // Log separado para segurança
-  transportTargets.push({
-    target: 'pino-roll',
-    level: 'warn',
-    options: {
-      file: `${LOG_DIR}/security.log`,
-      frequency: 'daily',
-      size: MAX_FILE_SIZE,
-      mkdir: true,
-      maxFiles: LOG_RETENTION_DAYS,
-      compress: true,
-      dateFormat: 'YYYY-MM-DD',
-      syncTimeout: 0,
-      customFormatter: (obj: Record<string, any>) => {
-        if (
-          obj.category === LogCategory.SECURITY ||
-          obj.category === LogCategory.AUTH
-        ) {
-          return JSON.stringify(obj) + '\n';
-        }
-        return null;
-      },
-    },
-  });
-
-  // Log separado para performance
-  transportTargets.push({
-    target: 'pino-roll',
-    level: 'info',
-    options: {
-      file: `${LOG_DIR}/performance.log`,
-      frequency: 'daily',
-      size: MAX_FILE_SIZE,
-      mkdir: true,
-      maxFiles: LOG_RETENTION_DAYS,
-      compress: true,
-      dateFormat: 'YYYY-MM-DD',
-      customFormatter: (obj: Record<string, any>) => {
-        if (obj.category === LogCategory.PERFORMANCE) {
-          return JSON.stringify(obj) + '\n';
-        }
-        return null;
-      },
-    },
-  });
-}
-
-const transport = pino.transport({
-  targets: transportTargets,
-});
-
-const baseLogger = pino(
-  {
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-    timestamp: pino.stdTimeFunctions.isoTime,
-    formatters: {
-      level: label => {
-        return { level: label.toUpperCase() };
-      },
-    },
-    base: {
-      env: process.env.NODE_ENV,
-      service: 'ebgeo-service',
     },
   },
-  transport,
+};
+
+const productionConfig: LoggerOptions = {
+  level: 'info',
+  base: {
+    env: process.env.NODE_ENV,
+    service: 'ebgeo-service',
+  },
+  transport: {
+    targets: [
+      // Log principal
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/app.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+        },
+      },
+      // Logs de erro
+      {
+        target: 'pino-roll',
+        level: 'error',
+        options: {
+          file: `${LOG_DIR}/error.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+        },
+      },
+      // Logs de autenticação
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/auth.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.AUTH,
+        },
+      },
+      // Logs de segurança
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/security.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.SECURITY,
+        },
+      },
+      // Logs de performance
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/performance.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.PERFORMANCE,
+        },
+      },
+      // Logs de banco de dados
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/db.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.DB,
+        },
+      },
+      // Logs de API
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/api.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.API,
+        },
+      },
+      // Logs de acesso
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/access.log`,
+          frequency: 'daily',
+          size: process.env.LOG_MAX_SIZE || '10m',
+          mkdir: true,
+          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+          compress: true,
+          filter: (obj: any) => obj.category === LogCategory.ACCESS,
+        },
+      },
+    ],
+  },
+};
+
+// Criar o logger base com a configuração apropriada
+const baseLogger = pino(
+  process.env.NODE_ENV === 'production' ? productionConfig : developmentConfig,
 );
 
-// Adiciona informação do caller (arquivo/linha)
+// Adicionar informação do caller
 const logger = pinoCaller(baseLogger);
 
 // Interface estendida do logger para logging estruturado
 interface StructuredLogger {
-  logRequest: (req: any, details?: Partial<LogDetails>) => void;
-  logResponse: (
-    res: any,
-    duration: number,
-    details?: Partial<LogDetails>,
-  ) => void;
   logError: (error: Error | string, details: LogDetails) => void;
   logMetric: (
     name: string,
@@ -221,33 +245,6 @@ interface StructuredLogger {
 }
 
 const structuredLogger: StructuredLogger = {
-  logRequest(req, details = {}) {
-    logger.info({
-      msg: 'Incoming request',
-      category: LogCategory.API,
-      method: req.method,
-      url: req.url,
-      query: req.query,
-      params: req.params,
-      ip: req.ip,
-      userAgent: req.get('user-agent'),
-      requestId: req.id,
-      ...details,
-    });
-  },
-
-  logResponse(res, duration, details = {}) {
-    const level = res.statusCode >= 400 ? 'warn' : 'info';
-    logger[level]({
-      msg: 'Request completed',
-      category: LogCategory.API,
-      statusCode: res.statusCode,
-      duration,
-      requestId: res.req.id,
-      ...details,
-    });
-  },
-
   logError(error: Error | string, details: LogDetails) {
     const errorMessage = error instanceof Error ? error.message : error;
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -260,6 +257,9 @@ const structuredLogger: StructuredLogger = {
   },
 
   logMetric(name: string, value: number, details: Partial<LogDetails>) {
+    if (details.path && shouldIgnorePath(details.path)) {
+      return;
+    }
     logger.info({
       msg: 'Metric recorded',
       category: LogCategory.PERFORMANCE,
@@ -286,6 +286,13 @@ const structuredLogger: StructuredLogger = {
   },
 
   logAccess(message: string, details: Partial<LogDetails>) {
+    if (
+      details.additionalInfo &&
+      details.additionalInfo.path &&
+      shouldIgnorePath(details.additionalInfo.path)
+    ) {
+      return;
+    }
     logger.info({
       msg: message,
       category: LogCategory.ACCESS,
@@ -294,6 +301,9 @@ const structuredLogger: StructuredLogger = {
   },
 
   logPerformance(message: string, details: Partial<LogDetails>) {
+    if (details.path && shouldIgnorePath(details.path)) {
+      return;
+    }
     logger.info({
       msg: message,
       category: LogCategory.PERFORMANCE,

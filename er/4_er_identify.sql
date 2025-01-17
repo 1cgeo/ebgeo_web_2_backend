@@ -7,7 +7,7 @@ CREATE TABLE ng.identify (
     altitude_base numeric,
     altitude_topo numeric,
     geom GEOMETRY(POLYGON, 4326) NOT NULL,
-    model_id UUID REFERENCES ng.catalogo_3d(id);
+    model_id UUID REFERENCES ng.catalogo_3d(id),
     CONSTRAINT identify_pk PRIMARY KEY (id),
     CONSTRAINT chk_altitude_base_topo CHECK (altitude_base <= altitude_topo)
 );

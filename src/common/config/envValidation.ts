@@ -151,7 +151,7 @@ const validateAuthentication = (): void => {
   const context = 'Authentication Configuration';
   const MIN_SECRET_LENGTH = 32;
 
-  ['JWT_SECRET', 'CSRF_SECRET', 'PASSWORD_PEPPER'].forEach(varName => {
+  ['JWT_SECRET', 'PASSWORD_PEPPER'].forEach(varName => {
     if (!process.env[varName]) {
       errors.push({
         context,

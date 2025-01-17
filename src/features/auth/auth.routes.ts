@@ -23,9 +23,6 @@ const router = Router();
 
 router.post('/login', loginValidation, asyncHandler(login));
 
-// Rotas protegidas - requerem autenticação
-router.use(authenticateRequest);
-
 router.post('/logout', asyncHandler(logout));
 
 // Rota para validação de API key (nginx auth_request)

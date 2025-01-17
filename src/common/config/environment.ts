@@ -42,7 +42,7 @@ export class EnvironmentManager {
     return EnvironmentManager.instance;
   }
 
-  private buildHelmetConfig(isProduction: boolean): HelmetOptions {
+  private buildHelmetConfig(isDevelopment: boolean): HelmetOptions {
     const commonConfig = {
       frameguard: {
         action: 'deny' as const,
@@ -56,50 +56,54 @@ export class EnvironmentManager {
       },
     };
 
-    if (isProduction) {
+    if (isDevelopment) {
       return {
         ...commonConfig,
         contentSecurityPolicy: {
-          useDefaults: true,
           directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'"],
-            styleSrc: ["'self'"],
-            imgSrc: ["'self'"],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'none'"],
-            frameAncestors: ["'none'"],
-            formAction: ["'self'"],
-            upgradeInsecureRequests: [],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:'],
+            connectSrc: [
+              "'self'",
+              'ws:',
+              'wss:',
+              'http://localhost:*',
+              'https://localhost:*',
+            ],
+            fontSrc: ["'self'", 'data:'],
           },
         },
-        crossOriginEmbedderPolicy: true,
-        crossOriginOpenerPolicy: { policy: 'same-origin' as const },
-        crossOriginResourcePolicy: { policy: 'same-origin' as const },
-        dnsPrefetchControl: { allow: false },
-        referrerPolicy: { policy: 'strict-origin-when-cross-origin' as const },
+        crossOriginEmbedderPolicy: false,
+        crossOriginOpenerPolicy: false,
+        crossOriginResourcePolicy: false,
       };
     }
 
-    // Configuração de desenvolvimento
+    // Configuração de produção
     return {
       ...commonConfig,
       contentSecurityPolicy: {
-        useDefaults: true,
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          connectSrc: ["'self'", 'ws:', 'wss:'],
-          fontSrc: ["'self'", 'data:'],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+          imgSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
         },
       },
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: false,
-      crossOriginResourcePolicy: false,
+      crossOriginEmbedderPolicy: true,
+      crossOriginOpenerPolicy: { policy: 'same-origin' as const },
+      crossOriginResourcePolicy: { policy: 'same-origin' as const },
+      dnsPrefetchControl: { allow: false },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' as const },
     };
   }
 
@@ -122,19 +126,14 @@ export class EnvironmentManager {
           process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: [
-          'Content-Type',
-          'Authorization',
-          'X-API-Key',
-          'X-CSRF-Token',
-        ],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
       },
       dbConfig: {
         ssl: isProduction ? { rejectUnauthorized: false } : false,
         maxConnections: isProduction ? 20 : isDevelopment ? 10 : 5,
         idleTimeoutMillis: isProduction ? 30000 : isDevelopment ? 30000 : 10000,
       },
-      helmetConfig: this.buildHelmetConfig(isProduction),
+      helmetConfig: this.buildHelmetConfig(isDevelopment),
     };
   }
 
