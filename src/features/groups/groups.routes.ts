@@ -17,30 +17,26 @@ import {
 const router = Router();
 
 router.get(
-  '/groups',
+  '/',
   authorize([UserRole.ADMIN]),
   listGroupsValidation,
   asyncHandler(listGroups),
 );
 
 router.post(
-  '/groups',
+  '/',
   authorize([UserRole.ADMIN]),
   createGroupValidation,
   asyncHandler(createGroup),
 );
 
 router.put(
-  '/groups/:id',
+  '/:id',
   authorize([UserRole.ADMIN]),
   updateGroupValidation,
   asyncHandler(updateGroup),
 );
 
-router.delete(
-  '/groups/:id',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(deleteGroup),
-);
+router.delete('/:id', authorize([UserRole.ADMIN]), asyncHandler(deleteGroup));
 
 export default router;

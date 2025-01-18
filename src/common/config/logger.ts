@@ -1,6 +1,7 @@
 import { pino, LoggerOptions } from 'pino';
-import pinoCallerPkg from 'pino-caller';
-const { pinoCaller } = pinoCallerPkg;
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pinoCaller = require('pino-caller');
 import fs from 'fs';
 
 export const IGNORED_PATHS = [

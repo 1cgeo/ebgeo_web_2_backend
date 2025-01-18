@@ -23,27 +23,23 @@ const router = Router();
 
 // Rotas administrativas (requer ADMIN)
 router.get(
-  '/users',
+  '/',
   authorize([UserRole.ADMIN]),
   listUsersValidation,
   asyncHandler(listUsers),
 );
 
-router.get(
-  '/users/:id',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(getUserDetails),
-);
+router.get('/:id', authorize([UserRole.ADMIN]), asyncHandler(getUserDetails));
 
 router.post(
-  '/users',
+  '/',
   authorize([UserRole.ADMIN]),
   createUserValidation,
   asyncHandler(createUser),
 );
 
 router.put(
-  '/users/:id',
+  '/:id',
   authorize([UserRole.ADMIN]),
   updateUserValidation,
   asyncHandler(updateUser),
@@ -51,13 +47,13 @@ router.put(
 
 // Rotas de perfil (qualquer usuário autenticado)
 router.get(
-  '/users/me',
+  '/me',
   authorize([UserRole.ADMIN, UserRole.USER]),
   asyncHandler(getUserProfile),
 );
 
 router.put(
-  '/users/me',
+  '/me',
   authorize([UserRole.ADMIN, UserRole.USER]),
   updateProfileValidation,
   asyncHandler(updateProfile),
@@ -65,7 +61,7 @@ router.put(
 
 // Rota de alteração de senha (admin ou próprio usuário)
 router.put(
-  '/users/:id/password',
+  '/:id/password',
   authorize([UserRole.ADMIN, UserRole.USER]),
   updatePasswordValidation,
   asyncHandler(updatePassword),

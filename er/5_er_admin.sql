@@ -2,7 +2,7 @@
 CREATE TABLE ng.audit_trail (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     action VARCHAR(50) NOT NULL,
-    actor_id UUID NOT NULL REFERENCES ng.users(id),
+    actor_id UUID NOT NULL,
     target_type VARCHAR(20),
     target_id UUID,
     target_name VARCHAR(255),

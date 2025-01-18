@@ -34,15 +34,13 @@
     "incremental": true
   },
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "coverage",
-    "**/*.spec.ts",
-    "**/*.test.ts"
+    "tests"
   ],
   "ts-node": {
     "transpileOnly": true

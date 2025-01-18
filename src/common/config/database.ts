@@ -47,37 +47,48 @@ const initOptions: IInitOptions = {
 };
 
 const pgp: IMain = pgPromise(initOptions);
+let db: IDatabase<any>;
 
-// Obter configurações de banco de dados baseadas no ambiente
-const dbConfig = envManager.getDbConfig();
+export const initializeDatabase = () => {
+  if (db) {
+    return db; // Retorna instância existente se já foi inicializada
+  }
 
-const config = {
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  max: dbConfig.maxConnections,
-  idleTimeoutMillis: dbConfig.idleTimeoutMillis,
-  ssl: dbConfig.ssl,
-  retry: {
-    max: 3,
-    interval: 1000,
-  },
+  // Obter configurações de banco de dados baseadas no ambiente
+  const dbConfig = envManager.getDbConfig();
+
+  const config = {
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    max: dbConfig.maxConnections,
+    idleTimeoutMillis: dbConfig.idleTimeoutMillis,
+    ssl: dbConfig.ssl,
+    retry: {
+      max: 3,
+      interval: 1000,
+    },
+  };
+
+  db = pgp(config);
+  return db;
 };
 
-export const db: IDatabase<any> = pgp(config);
+export { db };
 
 // Função para testar a conexão
 export async function testDatabaseConnection(): Promise<boolean> {
   try {
-    await db.one('SELECT 1');
+    const database = initializeDatabase();
+    await database.one('SELECT 1');
     logger.logAccess('Database connection successful', {
       category: LogCategory.DB,
       additionalInfo: {
         environment: envManager.getEnvironment(),
-        host: config.host,
-        database: config.database,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
       },
     });
     return true;

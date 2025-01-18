@@ -13,10 +13,13 @@
         "start": "node dist/index.js",
         "dev": "nodemon",
         "build": "tsc",
-        "type-check": "tsc --noEmit",
-        "type-check:watch": "tsc --noEmit --watch",
+        "type-check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+        "type-check:watch": "tsc -p tsconfig.test.json --noEmit --watch",
         "lint": "eslint \"src/**/*.ts\"",
-        "lint-full": "npm run type-check && npm run lint"
+        "lint-full": "npm run type-check && npm run lint",
+        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --detectOpenHandles",
+        "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+        "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",
@@ -55,6 +58,7 @@
         "@types/uuid": "^10.0.0",
         "@typescript-eslint/eslint-plugin": "^8.20.0",
         "@typescript-eslint/parser": "^8.20.0",
+        "cross-env": "^7.0.3",
         "eslint": "^9.18.0",
         "eslint-config-prettier": "^10.0.1",
         "eslint-plugin-prettier": "^5.2.2",

@@ -5,7 +5,11 @@ import http from 'http';
 import fs from 'fs';
 import app from './app.js';
 import logger, { LogCategory } from './common/config/logger.js';
-import { db, testDatabaseConnection } from './common/config/database.js';
+import {
+  db,
+  initializeDatabase,
+  testDatabaseConnection,
+} from './common/config/database.js';
 import { validateEnvVariables } from './common/config/envValidation.js';
 import { envManager } from './common/config/environment.js';
 
@@ -41,6 +45,9 @@ async function startServer() {
         environment: envManager.getEnvironment(),
       },
     });
+
+    // Inicializar banco
+    initializeDatabase();
 
     // Testar conexão com banco
     const isConnected = await testDatabaseConnection();

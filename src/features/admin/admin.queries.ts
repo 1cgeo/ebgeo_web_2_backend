@@ -66,7 +66,7 @@ export const GET_AUDIT_ENTRIES = `
       at.*,
       u.username as actor_username
     FROM ng.audit_trail at
-    JOIN ng.users u ON at.actor_id = u.id
+    LEFT JOIN ng.users u ON at.actor_id = u.id
     WHERE
       ($1::timestamptz IS NULL OR at.created_at >= $1) AND
       ($2::timestamptz IS NULL OR at.created_at <= $2) AND
