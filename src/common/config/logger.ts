@@ -107,9 +107,9 @@ const developmentConfig: LoggerOptions = {
           file: `${LOG_DIR}/app.log`,
           // ...
         },
-      }
-    ]
-  }
+      },
+    ],
+  },
 };
 
 const productionConfig: LoggerOptions = {

@@ -1,17 +1,13 @@
 import { Router } from 'express';
 import {
-  listUsers,
-  updateUser,
-  getGroupMembers,
-  queryLogs,
-  exportLogs,
+  getSystemHealth,
   getSystemMetrics,
+  queryLogs,
+  queryAudit,
 } from './admin.module.js';
 import {
-  userListValidation,
-  userUpdateValidation,
-  groupMembersValidation,
   logQueryValidation,
+  auditQueryValidation,
 } from './admin.validation.js';
 import { authorize } from '../auth/auth.middleware.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
@@ -19,41 +15,32 @@ import { UserRole } from '../auth/auth.types.js';
 
 const router = Router();
 
+// Health check e métricas
 router.get(
-  '/users',
-  userListValidation,
+  '/health',
   authorize([UserRole.ADMIN]),
-  asyncHandler(listUsers),
+  asyncHandler(getSystemHealth),
 );
-
-router.put(
-  '/users/:id',
-  userUpdateValidation,
-  authorize([UserRole.ADMIN]),
-  asyncHandler(updateUser),
-);
-
 router.get(
-  '/groups/:groupId/members',
-  groupMembersValidation,
+  '/metrics',
   authorize([UserRole.ADMIN]),
-  asyncHandler(getGroupMembers),
+  asyncHandler(getSystemMetrics),
 );
 
+// Logs
 router.get(
   '/logs',
-  logQueryValidation,
   authorize([UserRole.ADMIN]),
+  logQueryValidation,
   asyncHandler(queryLogs),
 );
 
+// Trilha de auditoria
 router.get(
-  '/logs/export',
-  logQueryValidation,
+  '/audit',
   authorize([UserRole.ADMIN]),
-  asyncHandler(exportLogs),
+  auditQueryValidation,
+  asyncHandler(queryAudit),
 );
-
-router.get('/metrics', asyncHandler(getSystemMetrics));
 
 export default router;

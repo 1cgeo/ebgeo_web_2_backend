@@ -1,18 +1,6 @@
 import { LogCategory } from '../../common/config/logger.js';
-import { UserRole } from '../auth/auth.types.js';
 
-// Parâmetros para consulta de logs
-export interface LogQueryParams {
-  startDate?: string;
-  endDate?: string;
-  level?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
-  category?: LogCategory;
-  search?: string;
-  page?: number;
-  limit?: number;
-}
-
-// Resposta de métricas do sistema
+// Métricas do Sistema
 export interface SystemMetrics {
   system: {
     uptime: number;
@@ -52,67 +40,105 @@ export interface SystemMetrics {
   };
 }
 
-// Tipos para gerenciamento de usuários
-export interface UserListParams {
-  page?: number;
-  limit?: number;
+// Health Check
+export interface ServiceHealth {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  details?: Record<string, any>;
+  lastCheck: Date;
+}
+
+export interface SystemHealth {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  timestamp: Date;
+  environment: string;
+  uptime: number;
+  services: {
+    database: ServiceHealth;
+    fileSystem: ServiceHealth;
+    auth: ServiceHealth;
+    api: ServiceHealth;
+  };
+  memory: {
+    used: number;
+    total: number;
+    percentUsed: number;
+  };
+}
+
+// Logs
+export interface LogQueryParams {
+  startDate?: string;
+  endDate?: string;
+  level?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+  category?: LogCategory;
   search?: string;
-  status?: 'active' | 'inactive' | 'all';
-  role?: UserRole | 'all';
-}
-
-export interface UserUpdateData {
-  email?: string;
-  role?: UserRole;
-  isActive?: boolean;
-  password?: string;
-}
-
-// Tipos para respostas da API
-export interface UserListResponse {
-  users: Array<{
-    id: string;
-    username: string;
-    email: string;
-    role: UserRole;
-    isActive: boolean;
-    lastLogin?: Date;
-    createdAt: Date;
-    updatedAt: Date;
-  }>;
-  total: number;
-  page: number;
-  limit: number;
-}
-
-export interface GroupMembersResponse {
-  members: Array<{
-    id: string;
-    username: string;
-    email: string;
-    addedAt: Date;
-    addedBy: string;
-  }>;
-  total: number;
-  page: number;
-  limit: number;
-}
-
-// Parâmetros para grupos
-export interface GroupMembersParams {
   page?: number;
   limit?: number;
 }
 
-// Parâmetros para logs
+export interface LogEntry {
+  timestamp: string;
+  level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+  category: LogCategory;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
 export interface LogResponse {
-  logs: Array<{
-    timestamp: string;
-    level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
-    category: LogCategory;
-    message: string;
-    details?: Record<string, unknown>;
-  }>;
+  logs: LogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// Audit Trail
+export type AuditAction =
+  | 'USER_CREATE'
+  | 'USER_UPDATE'
+  | 'USER_DELETE'
+  | 'USER_ROLE_CHANGE'
+  | 'GROUP_CREATE'
+  | 'GROUP_UPDATE'
+  | 'GROUP_DELETE'
+  | 'ZONE_CREATE'
+  | 'ZONE_DELETE'
+  | 'MODEL_PERMISSION_CHANGE'
+  | 'ZONE_PERMISSION_CHANGE'
+  | 'API_KEY_REGENERATE'
+  | 'ADMIN_LOGIN'
+  | 'ADMIN_ACTION';
+
+export interface AuditEntry {
+  id: string;
+  timestamp: Date;
+  action: AuditAction;
+  actor: {
+    id: string;
+    username: string;
+  };
+  target?: {
+    type: 'USER' | 'GROUP' | 'MODEL' | 'ZONE' | 'SYSTEM';
+    id: string;
+    name: string;
+  };
+  details: Record<string, any>;
+  ip: string;
+  userAgent?: string;
+}
+
+export interface AuditQueryParams {
+  startDate?: string;
+  endDate?: string;
+  action?: AuditAction;
+  actorId?: string;
+  targetId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AuditResponse {
+  entries: AuditEntry[];
   total: number;
   page: number;
   limit: number;

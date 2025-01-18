@@ -1,386 +1,89 @@
-// src/features/admin/admin.module.ts
-
 import { Request, Response } from 'express';
+import { validationResult } from 'express-validator';
 import os from 'os';
-import fs from 'fs/promises';
+import { promises as fs } from 'fs';
 import path from 'path';
-import bcrypt from 'bcryptjs';
 import { db } from '../../common/config/database.js';
-import logger from '../../common/config/logger.js';
+import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
-import * as queries from './admin.queries.js';
 import {
-  LogQueryParams,
-  UserUpdateData,
   SystemMetrics,
-  UserListResponse,
-  GroupMembersResponse,
-  LogResponse,
+  SystemHealth,
+  LogQueryParams,
+  AuditQueryParams,
+  LogEntry,
+  ServiceHealth,
+  AuditEntry,
 } from './admin.types.js';
-import { LogCategory } from '../../common/config/logger.js';
+import * as queries from './admin.queries.js';
 
-// Constantes
-const MAX_LOG_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-// Utilitários
-const addPepper = (password: string): string => {
-  const pepper = process.env.PASSWORD_PEPPER;
-  if (!pepper) {
-    throw new Error('PASSWORD_PEPPER environment variable is not set');
-  }
-  return `${password}${pepper}`;
-};
-
-// Gestão de Usuários
-export async function listUsers(req: Request, res: Response) {
-  const {
-    page = 1,
-    limit = 10,
-    search,
-    status,
-    role,
-    sortBy = 'created_at_desc',
-  } = req.query;
-
+// Health Check
+export async function getSystemHealth(_req: Request, res: Response) {
   try {
-    const offset = (Number(page) - 1) * Number(limit);
-    const isActive = status === 'all' ? null : status === 'active';
-    const roleFilter = role === 'all' ? null : role;
+    const startTime = process.hrtime();
 
-    const [users, countResult] = await Promise.all([
-      db.any(queries.LIST_USERS, [
-        search,
-        roleFilter,
-        isActive,
-        sortBy,
-        limit,
-        offset,
+    // Verificar serviços
+    const [dbHealth, fileSystemHealth, authHealth] = await Promise.all([
+      checkDatabaseHealth(),
+      checkFileSystemHealth(),
+      checkAuthHealth(),
+    ]);
+
+    // Calcular métricas de API
+    const apiHealth = checkApiHealth(startTime);
+
+    // Coletar métricas do sistema
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+
+    const health: SystemHealth = {
+      status: getOverallStatus([
+        dbHealth,
+        fileSystemHealth,
+        authHealth,
+        apiHealth,
       ]),
-      db.one(queries.COUNT_USERS, [search, roleFilter, isActive]),
-    ]);
-
-    const response: UserListResponse = {
-      users,
-      total: parseInt(countResult.count),
-      page: Number(page),
-      limit: Number(limit),
+      timestamp: new Date(),
+      environment: process.env.NODE_ENV || 'development',
+      uptime: process.uptime(),
+      services: {
+        database: dbHealth,
+        fileSystem: fileSystemHealth,
+        auth: authHealth,
+        api: apiHealth,
+      },
+      memory: {
+        used: usedMemory,
+        total: totalMemory,
+        percentUsed: (usedMemory / totalMemory) * 100,
+      },
     };
 
-    return res.json(response);
+    return res.json(health);
   } catch (error) {
-    logger.error('Error listing users:', {
-      error,
-      category: LogCategory.ADMIN,
-      queryParams: { search, status, role, page, limit },
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'health_check',
+      },
     });
-    throw ApiError.internal('Erro ao listar usuários');
+    throw ApiError.internal('Erro ao verificar saúde do sistema');
   }
 }
 
-export async function updateUser(req: Request, res: Response) {
-  const { id } = req.params;
-  const updateData: UserUpdateData = req.body;
-
-  try {
-    await db.tx(async t => {
-      // Verificar se usuário existe
-      const user = await t.oneOrNone('SELECT id FROM ng.users WHERE id = $1', [
-        id,
-      ]);
-      if (!user) {
-        throw ApiError.notFound('Usuário não encontrado');
-      }
-
-      let updates = [];
-      let values = [id];
-      let paramCount = 2;
-
-      if (updateData.email) {
-        // Verificar se email já existe
-        const emailExists = await t.oneOrNone(
-          'SELECT id FROM ng.users WHERE email = $1 AND id != $2',
-          [updateData.email, id],
-        );
-        if (emailExists) {
-          throw ApiError.conflict('Email já está em uso');
-        }
-        updates.push(`email = $${paramCount}`);
-        values.push(updateData.email);
-        paramCount++;
-      }
-
-      if (updateData.role) {
-        updates.push(`role = $${paramCount}`);
-        values.push(updateData.role);
-        paramCount++;
-      }
-
-      if (typeof updateData.isActive === 'boolean') {
-        updates.push(`is_active = ${paramCount}`);
-        values.push(updateData.isActive.toString());
-        paramCount++;
-      }
-
-      if (updateData.password) {
-        const hashedPassword = await bcrypt.hash(
-          addPepper(updateData.password),
-          10,
-        );
-        updates.push(`password = $${paramCount}`);
-        values.push(hashedPassword);
-        paramCount++;
-      }
-
-      if (updates.length === 0) {
-        throw ApiError.badRequest('Nenhum dado para atualizar');
-      }
-
-      updates.push('updated_at = CURRENT_TIMESTAMP');
-
-      const updatedUser = await t.one(
-        `
-        UPDATE ng.users 
-        SET ${updates.join(', ')}
-        WHERE id = $1
-        RETURNING id, username, email, role, is_active, updated_at
-        `,
-        values,
-      );
-
-      return updatedUser;
-    });
-
-    return res.json({ message: 'Usuário atualizado com sucesso' });
-  } catch (error) {
-    logger.error('Error updating user:', {
-      error,
-      category: LogCategory.ADMIN,
-      userId: id,
-    });
-    throw error;
-  }
-}
-
-// Gestão de Grupos
-export async function getGroupMembers(req: Request, res: Response) {
-  const { groupId } = req.params;
-  const { page = 1, limit = 10 } = req.query;
-  const offset = (Number(page) - 1) * Number(limit);
-
-  try {
-    const [members, countResult] = await Promise.all([
-      db.any(queries.GET_GROUP_MEMBERS, [groupId, limit, offset]),
-      db.one(queries.COUNT_GROUP_MEMBERS, [groupId]),
-    ]);
-
-    const response: GroupMembersResponse = {
-      members,
-      total: parseInt(countResult.count),
-      page: Number(page),
-      limit: Number(limit),
-    };
-
-    return res.json(response);
-  } catch (error) {
-    logger.error('Error getting group members:', {
-      error,
-      category: LogCategory.ADMIN,
-      groupId,
-    });
-    throw error;
-  }
-}
-
-// Logs
-export async function queryLogs(req: Request, res: Response) {
-  const {
-    startDate,
-    endDate,
-    level,
-    category,
-    search,
-    page = 1,
-    limit = 100,
-  } = req.query as unknown as LogQueryParams;
-
-  try {
-    const logDir = process.env.LOG_DIR || 'logs';
-    const files = await fs.readdir(logDir);
-    const logFiles = files.filter(file => {
-      // Filtrar arquivos de log relevantes baseado nas datas
-      if (startDate || endDate) {
-        const fileDate = file.match(/\d{4}-\d{2}-\d{2}/)?.[0];
-        if (fileDate) {
-          if (startDate && fileDate < startDate) return false;
-          if (endDate && fileDate > endDate) return false;
-        }
-      }
-      return file.endsWith('.log');
-    });
-
-    let logs: any[] = [];
-
-    for (const file of logFiles) {
-      const filePath = path.join(logDir, file);
-      const stats = await fs.stat(filePath);
-
-      // Pular arquivos muito grandes
-      if (stats.size > MAX_LOG_FILE_SIZE) {
-        logger.warn(`Skipping large log file: ${file}`, {
-          category: LogCategory.ADMIN,
-          fileSize: stats.size,
-        });
-        continue;
-      }
-
-      const content = await fs.readFile(filePath, 'utf-8');
-      const lines = content.split('\n').filter(Boolean);
-
-      const parsedLogs = lines
-        .map(line => {
-          try {
-            const log = JSON.parse(line);
-            // Sanitizar dados sensíveis
-            if (log.password) delete log.password;
-            if (log.token) delete log.token;
-            if (log.apiKey) delete log.apiKey;
-            return log;
-          } catch {
-            return null;
-          }
-        })
-        .filter(log => {
-          if (!log) return false;
-
-          if (startDate && log.timestamp < startDate) return false;
-          if (endDate && log.timestamp > endDate) return false;
-          if (level && log.level !== level) return false;
-          if (category && log.category !== category) return false;
-          if (
-            search &&
-            !JSON.stringify(log).toLowerCase().includes(search.toLowerCase())
-          )
-            return false;
-
-          return true;
-        });
-
-      logs = [...logs, ...parsedLogs];
-    }
-
-    logs.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
-
-    const start = (page - 1) * limit;
-    const paginatedLogs = logs.slice(start, start + limit);
-
-    const response: LogResponse = {
-      logs: paginatedLogs,
-      total: logs.length,
-      page: Number(page),
-      limit: Number(limit),
-    };
-
-    return res.json(response);
-  } catch (error) {
-    logger.error('Error querying logs:', {
-      error,
-      category: LogCategory.ADMIN,
-      queryParams: { startDate, endDate, level, category },
-    });
-    throw ApiError.internal('Erro ao consultar logs');
-  }
-}
-
-export async function exportLogs(req: Request, res: Response) {
-  const query = req.query as unknown as LogQueryParams;
-  const MAX_EXPORT_SIZE = 50 * 1024 * 1024; // 50MB
-
-  try {
-    const logDir = process.env.LOG_DIR || 'logs';
-    const files = await fs.readdir(logDir);
-    const logFiles = files.filter(file => file.endsWith('.log'));
-
-    let totalSize = 0;
-    let logs: any[] = [];
-
-    for (const file of logFiles) {
-      const filePath = path.join(logDir, file);
-      const stats = await fs.stat(filePath);
-
-      totalSize += stats.size;
-      if (totalSize > MAX_EXPORT_SIZE) {
-        throw ApiError.badRequest(
-          'Volume de logs excede o limite permitido para exportação',
-        );
-      }
-
-      const content = await fs.readFile(filePath, 'utf-8');
-      const lines = content.split('\n').filter(Boolean);
-
-      const filteredLogs = lines
-        .map(line => {
-          try {
-            const log = JSON.parse(line);
-            // Sanitizar dados sensíveis
-            if (log.password) delete log.password;
-            if (log.token) delete log.token;
-            if (log.apiKey) delete log.apiKey;
-
-            if (
-              (query.startDate && log.timestamp < query.startDate) ||
-              (query.endDate && log.timestamp > query.endDate) ||
-              (query.level && log.level !== query.level) ||
-              (query.category && log.category !== query.category)
-            ) {
-              return null;
-            }
-            return log;
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean);
-
-      logs = [...logs, ...filteredLogs];
-    }
-
-    logs.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
-
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename=logs-export.json',
-    );
-
-    return res.json(logs);
-  } catch (error) {
-    logger.error('Error exporting logs:', {
-      error,
-      category: LogCategory.ADMIN,
-    });
-    throw error;
-  }
-}
-
-// Métricas do Sistema
+// System Metrics
 export async function getSystemMetrics(_req: Request, res: Response) {
   try {
-    const [userMetrics, groupMetrics, modelMetrics, dbStatus] =
+    const [dbStatus, userMetrics, modelMetrics, groupMetrics] =
       await Promise.all([
+        db.one(queries.GET_DB_METRICS),
         db.one(queries.GET_USER_METRICS),
-        db.one(queries.GET_GROUP_METRICS),
         db.one(queries.GET_MODEL_METRICS),
-        db.one(queries.GET_DB_STATUS),
+        db.one(queries.GET_GROUP_METRICS),
       ]);
 
     const cpus = os.cpus();
-
     const metrics: SystemMetrics = {
       system: {
         uptime: process.uptime(),
@@ -398,19 +101,19 @@ export async function getSystemMetrics(_req: Request, res: Response) {
       },
       database: {
         connectionPool: {
-          total: dbStatus.total_connections,
-          active: dbStatus.active_connections,
-          idle: dbStatus.idle_connections,
+          total: parseInt(dbStatus.total_connections),
+          active: parseInt(dbStatus.active_connections),
+          idle: parseInt(dbStatus.idle_connections),
         },
       },
       usage: {
-        totalUsers: userMetrics.total_users,
-        activeUsers: userMetrics.active_users,
-        totalGroups: groupMetrics.total_groups,
+        totalUsers: parseInt(userMetrics.total_users),
+        activeUsers: parseInt(userMetrics.active_users),
+        totalGroups: parseInt(groupMetrics.total_groups),
         totalModels: {
-          total: modelMetrics.total_models,
-          public: modelMetrics.public_models,
-          private: modelMetrics.private_models,
+          total: parseInt(modelMetrics.total_models),
+          public: parseInt(modelMetrics.public_models),
+          private: parseInt(modelMetrics.private_models),
         },
       },
       logs: await analyzeRecentLogs(),
@@ -418,33 +121,211 @@ export async function getSystemMetrics(_req: Request, res: Response) {
 
     return res.json(metrics);
   } catch (error) {
-    logger.error('Error getting system metrics:', {
-      error,
-      category: LogCategory.ADMIN,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'get_metrics',
+      },
     });
     throw ApiError.internal('Erro ao obter métricas do sistema');
   }
 }
 
-async function analyzeRecentLogs() {
+// Logs
+export async function queryLogs(req: Request, res: Response) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw ApiError.unprocessableEntity('Parâmetros de consulta inválidos', {
+      errors: errors.array(),
+    });
+  }
+
+  const {
+    startDate,
+    endDate,
+    level,
+    category,
+    search,
+    page = 1,
+    limit = 100,
+  } = req.query as unknown as LogQueryParams;
+
   try {
     const logDir = process.env.LOG_DIR || 'logs';
+    const logs = await processLogFiles(logDir, {
+      startDate,
+      endDate,
+      level,
+      category,
+      search,
+    });
+
+    const start = (Number(page) - 1) * Number(limit);
+    const paginatedLogs = logs.slice(start, start + Number(limit));
+
+    return res.json({
+      logs: paginatedLogs,
+      total: logs.length,
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (error) {
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'query_logs',
+      },
+    });
+    throw ApiError.internal('Erro ao consultar logs');
+  }
+}
+
+// Audit Trail
+export async function queryAudit(req: Request, res: Response) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw ApiError.unprocessableEntity('Parâmetros de consulta inválidos', {
+      errors: errors.array(),
+    });
+  }
+
+  const {
+    startDate,
+    endDate,
+    action,
+    actorId,
+    targetId,
+    search,
+    page = 1,
+    limit = 20,
+  } = req.query as unknown as AuditQueryParams;
+
+  try {
+    const offset = (Number(page) - 1) * Number(limit);
+    const result = await db.any(queries.GET_AUDIT_ENTRIES, [
+      startDate,
+      endDate,
+      action,
+      actorId,
+      targetId,
+      search,
+      limit,
+      offset,
+    ]);
+
+    const entries = result.map(formatAuditEntry);
+    const total = result[0]?.total_count || 0;
+
+    return res.json({
+      entries,
+      total: Number(total),
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (error) {
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'query_audit',
+      },
+    });
+    throw ApiError.internal('Erro ao consultar trilha de auditoria');
+  }
+}
+
+// Funções auxiliares
+async function checkDatabaseHealth(): Promise<ServiceHealth> {
+  try {
+    const startTime = Date.now();
+    await db.one(queries.CHECK_DB_HEALTH);
+    const responseTime = Date.now() - startTime;
+
+    return {
+      status: responseTime < 1000 ? 'healthy' : 'degraded',
+      details: { responseTime },
+      lastCheck: new Date(),
+    };
+  } catch {
+    return {
+      status: 'unhealthy',
+      details: { error: 'Database connection failed' },
+      lastCheck: new Date(),
+    };
+  }
+}
+
+async function checkFileSystemHealth(): Promise<ServiceHealth> {
+  try {
+    const logDir = process.env.LOG_DIR || 'logs';
+    await fs.access(logDir, fs.constants.R_OK | fs.constants.W_OK);
+
+    return {
+      status: 'healthy',
+      lastCheck: new Date(),
+    };
+  } catch {
+    return {
+      status: 'unhealthy',
+      details: { error: 'File system access failed' },
+      lastCheck: new Date(),
+    };
+  }
+}
+
+async function checkAuthHealth(): Promise<ServiceHealth> {
+  try {
+    const hasJwtSecret = !!process.env.JWT_SECRET;
+    const hasAuthConfig = !!process.env.PASSWORD_PEPPER;
+
+    return {
+      status: hasJwtSecret && hasAuthConfig ? 'healthy' : 'degraded',
+      details: {
+        jwtConfigured: hasJwtSecret,
+        authConfigured: hasAuthConfig,
+      },
+      lastCheck: new Date(),
+    };
+  } catch {
+    return {
+      status: 'unhealthy',
+      details: { error: 'Auth configuration check failed' },
+      lastCheck: new Date(),
+    };
+  }
+}
+
+function checkApiHealth(startTime: [number, number]): ServiceHealth {
+  const [seconds, nanoseconds] = process.hrtime(startTime);
+  const responseTime = seconds * 1000 + nanoseconds / 1000000;
+
+  return {
+    status: responseTime < 500 ? 'healthy' : 'degraded',
+    details: { responseTime },
+    lastCheck: new Date(),
+  };
+}
+
+function getOverallStatus(services: ServiceHealth[]): SystemHealth['status'] {
+  if (services.some(s => s.status === 'unhealthy')) return 'unhealthy';
+  if (services.some(s => s.status === 'degraded')) return 'degraded';
+  return 'healthy';
+}
+
+async function analyzeRecentLogs() {
+  const logDir = process.env.LOG_DIR || 'logs';
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  let errors = 0;
+  let warnings = 0;
+  let totalRequests = 0;
+
+  try {
     const files = await fs.readdir(logDir);
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    let errors = 0;
-    let warnings = 0;
-    let totalRequests = 0;
-
     for (const file of files) {
       if (!file.endsWith('.log')) continue;
 
       const filePath = path.join(logDir, file);
       const stats = await fs.stat(filePath);
 
-      // Pular arquivos muito antigos baseado no nome ou data de modificação
-      const fileDate = file.match(/\d{4}-\d{2}-\d{2}/)?.[0];
-      if (fileDate && new Date(fileDate) < twentyFourHoursAgo) continue;
       if (stats.mtime < twentyFourHoursAgo) continue;
 
       const content = await fs.readFile(filePath, 'utf-8');
@@ -463,21 +344,116 @@ async function analyzeRecentLogs() {
         }
       }
     }
-
-    return {
-      errors24h: errors,
-      warnings24h: warnings,
-      totalRequests24h: totalRequests,
-    };
   } catch (error) {
-    logger.error('Error analyzing logs:', {
-      error,
-      category: LogCategory.ADMIN,
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'analyze_logs',
+      },
     });
-    return {
-      errors24h: 0,
-      warnings24h: 0,
-      totalRequests24h: 0,
-    };
   }
+
+  return {
+    errors24h: errors,
+    warnings24h: warnings,
+    totalRequests24h: totalRequests,
+  };
+}
+
+async function processLogFiles(
+  logDir: string,
+  filters: Omit<LogQueryParams, 'page' | 'limit'>,
+): Promise<LogEntry[]> {
+  const logs: LogEntry[] = [];
+  const files = await fs.readdir(logDir);
+
+  for (const file of files) {
+    if (!file.endsWith('.log')) continue;
+
+    const filePath = path.join(logDir, file);
+    const content = await fs.readFile(filePath, 'utf-8');
+    const lines = content.split('\n').filter(Boolean);
+
+    for (const line of lines) {
+      try {
+        const log = JSON.parse(line);
+        if (matchesLogFilters(log, filters)) {
+          logs.push(formatLogEntry(log));
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return logs.sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+}
+
+function matchesLogFilters(
+  log: any,
+  filters: Omit<LogQueryParams, 'page' | 'limit'>,
+): boolean {
+  if (
+    filters.startDate &&
+    new Date(log.timestamp) < new Date(filters.startDate)
+  ) {
+    return false;
+  }
+  if (filters.endDate && new Date(log.timestamp) > new Date(filters.endDate)) {
+    return false;
+  }
+  if (filters.level && log.level !== filters.level) {
+    return false;
+  }
+  if (filters.category && log.category !== filters.category) {
+    return false;
+  }
+  if (
+    filters.search &&
+    !JSON.stringify(log).toLowerCase().includes(filters.search.toLowerCase())
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function formatLogEntry(log: any): LogEntry {
+  return {
+    timestamp: log.timestamp,
+    level: log.level,
+    category: log.category,
+    message: log.msg || log.message,
+    details: {
+      ...log,
+      timestamp: undefined,
+      level: undefined,
+      category: undefined,
+      msg: undefined,
+      message: undefined,
+    },
+  };
+}
+
+function formatAuditEntry(row: any): AuditEntry {
+  return {
+    id: row.id,
+    timestamp: row.created_at,
+    action: row.action,
+    actor: {
+      id: row.actor_id,
+      username: row.actor_username,
+    },
+    target: row.target_type
+      ? {
+          type: row.target_type,
+          id: row.target_id,
+          name: row.target_name,
+        }
+      : undefined,
+    details: row.details,
+    ip: row.ip,
+    userAgent: row.user_agent,
+  };
 }

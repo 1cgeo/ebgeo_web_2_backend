@@ -13,6 +13,7 @@ import {
 } from './auth.types.js';
 import * as queries from './auth.queries.js';
 import { generateToken } from './auth.middleware.js';
+import { createAudit } from '../../common/config/audit.js';
 
 // Função utilitária para adicionar pepper à senha
 const addPepper = (password: string): string => {
@@ -50,6 +51,18 @@ export async function login(
       'UPDATE ng.users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id],
     );
+
+    await createAudit(req, {
+      action: 'ADMIN_LOGIN',
+      actorId: user.id,
+      targetType: 'USER',
+      targetId: user.id,
+      targetName: user.username,
+      details: {
+        role: user.role,
+        timestamp: new Date(),
+      },
+    });
 
     const payload = {
       userId: user.id,
@@ -172,6 +185,17 @@ export async function regenerateApiKey(req: Request, res: Response) {
       newApiKey,
       req.user.userId,
     ]);
+
+    await createAudit(req, {
+      action: 'API_KEY_REGENERATE',
+      actorId: req.user.userId,
+      targetType: 'USER',
+      targetId: req.user.userId,
+      targetName: req.user.username,
+      details: {
+        previousKeyCreatedAt: result.api_key_created_at,
+      },
+    });
 
     logger.logSecurity('API key regenerated', {
       userId: req.user.userId,

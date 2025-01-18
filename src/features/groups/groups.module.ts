@@ -4,6 +4,7 @@ import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import { CreateGroupDTO, UpdateGroupDTO } from './groups.types.js';
 import * as queries from './groups.queries.js';
+import { createAudit } from '../../common/config/audit.js';
 
 export async function listGroups(req: Request, res: Response) {
   const { page = 1, limit = 10, search } = req.query;
@@ -49,6 +50,9 @@ export async function createGroup(
 
   try {
     const result = await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       // Verificar se já existe um grupo com o mesmo nome
       const existingGroup = await t.oneOrNone(
         'SELECT id FROM ng.groups WHERE name = $1',
@@ -74,8 +78,22 @@ export async function createGroup(
         ]);
       }
 
-      // Retornar grupo completo
-      return t.one(queries.GET_GROUP, [group.id]);
+      const fullGroup = await t.one(queries.GET_GROUP, [group.id]);
+
+      // Adicionar auditoria
+      await createAudit(req, {
+        action: 'GROUP_CREATE',
+        actorId: req.user.userId,
+        targetType: 'GROUP',
+        targetId: group.id,
+        targetName: name,
+        details: {
+          description,
+          initial_members: userIds?.length || 0,
+        },
+      });
+
+      return fullGroup;
     });
 
     logger.logAccess('Group created', {
@@ -110,16 +128,20 @@ export async function updateGroup(
 
   try {
     const result = await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       // Verificar se o grupo existe
-      const group = await t.oneOrNone('SELECT * FROM ng.groups WHERE id = $1', [
-        id,
-      ]);
-      if (!group) {
+      const currentGroup = await t.oneOrNone(
+        'SELECT * FROM ng.groups WHERE id = $1',
+        [id],
+      );
+      if (!currentGroup) {
         throw ApiError.notFound('Grupo não encontrado');
       }
 
       // Se mudar o nome, verificar se já existe
-      if (name && name !== group.name) {
+      if (name && name !== currentGroup.name) {
         const existingGroup = await t.oneOrNone(
           'SELECT id FROM ng.groups WHERE name = $1 AND id != $2',
           [name, id],
@@ -132,17 +154,42 @@ export async function updateGroup(
       // Atualizar dados do grupo
       await t.one(queries.UPDATE_GROUP, [name, description, id]);
 
-      // Se forneceu userIds, atualizar membros
-      if (userIds !== undefined) {
-        await t.none(queries.UPDATE_GROUP_MEMBERS, [
-          id,
-          userIds || [],
-          req.user?.userId,
-        ]);
-      }
+      const updatedGroup = await t.one(queries.GET_GROUP, [id]);
 
-      // Retornar grupo atualizado
-      return t.one(queries.GET_GROUP, [id]);
+      // Adicionar auditoria
+      await createAudit(req, {
+        action: 'GROUP_UPDATE',
+        actorId: req.user.userId,
+        targetType: 'GROUP',
+        targetId: id,
+        targetName: currentGroup.name,
+        details: {
+          changes: {
+            name:
+              name !== undefined
+                ? {
+                    old: currentGroup.name,
+                    new: name,
+                  }
+                : undefined,
+            description:
+              description !== undefined
+                ? {
+                    old: currentGroup.description,
+                    new: description,
+                  }
+                : undefined,
+            members:
+              userIds !== undefined
+                ? {
+                    count: userIds.length,
+                  }
+                : undefined,
+          },
+        },
+      });
+
+      return updatedGroup;
     });
 
     logger.logAccess('Group updated', {
@@ -178,14 +225,37 @@ export async function deleteGroup(req: Request, res: Response) {
 
   try {
     await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       // Verificar se grupo existe
       const group = await t.oneOrNone(
-        'SELECT id FROM ng.groups WHERE id = $1',
+        'SELECT g.*, COUNT(ug.user_id) as member_count FROM ng.groups g ' +
+          'LEFT JOIN ng.user_groups ug ON g.id = ug.group_id ' +
+          'WHERE g.id = $1 ' +
+          'GROUP BY g.id',
         [id],
       );
       if (!group) {
         throw ApiError.notFound('Grupo não encontrado');
       }
+
+      // Adicionar auditoria
+      await createAudit(req, {
+        action: 'GROUP_DELETE',
+        actorId: req.user.userId,
+        targetType: 'GROUP',
+        targetId: id,
+        targetName: group.name,
+        details: {
+          deleted_group: {
+            name: group.name,
+            description: group.description,
+            member_count: group.member_count,
+            created_at: group.created_at,
+          },
+        },
+      });
 
       // Remover todas as permissões e relacionamentos
       await t.batch([

@@ -13,25 +13,45 @@ export interface GeographicName {
   access_level: 'public' | 'private';
 }
 
+export interface GeographicZone {
+  id: string;
+  name: string;
+  description?: string;
+  geom: any;
+  created_at: Date;
+  created_by: string;
+  updated_at?: Date;
+  updated_by?: string;
+}
+
+export interface ZoneWithStats extends GeographicZone {
+  user_count: number;
+  group_count: number;
+  area_km2: number;
+}
+
 export interface ZonePermissions {
-  zoneId: string;
-  zoneName: string;
-  userPermissions: Array<{
+  zone_id: string;
+  zone_name: string;
+  user_permissions: Array<{
     id: string;
     username: string;
   }>;
-  groupPermissions: Array<{
+  group_permissions: Array<{
     id: string;
     name: string;
   }>;
 }
 
-export interface UpdateZonePermissionsRequest {
+export interface CreateZoneRequest {
+  name: string;
+  description?: string;
+  geom: any; // GeoJSON geometry
   userIds?: string[];
   groupIds?: string[];
 }
 
-export interface AddZonePermissionRequest {
-  userId?: string;
-  groupId?: string;
+export interface UpdateZonePermissionsRequest {
+  userIds?: string[];
+  groupIds?: string[];
 }

@@ -1,40 +1,5 @@
 // Métricas de Sistema
-export const GET_USER_METRICS = `
-  SELECT 
-    COUNT(*) as total_users,
-    COUNT(*) FILTER (WHERE is_active = true) as active_users,
-    COUNT(*) FILTER (WHERE role = 'admin') as admin_users,
-    COUNT(*) FILTER (WHERE last_login >= NOW() - INTERVAL '24 hours') as active_last_24h
-  FROM ng.users;
-`;
-
-export const GET_GROUP_METRICS = `
-  WITH group_stats AS (
-    SELECT 
-      COUNT(*) as total_groups,
-      AVG(CAST((
-        SELECT COUNT(*) 
-        FROM ng.user_groups ug 
-        WHERE ug.group_id = g.id
-      ) AS FLOAT)) as avg_users_per_group
-    FROM ng.groups g
-  )
-  SELECT 
-    total_groups,
-    ROUND(CAST(avg_users_per_group AS NUMERIC), 2) as avg_users_per_group
-  FROM group_stats;
-`;
-
-export const GET_MODEL_METRICS = `
-  SELECT 
-    COUNT(*) as total_models,
-    COUNT(*) FILTER (WHERE access_level = 'public') as public_models,
-    COUNT(*) FILTER (WHERE access_level = 'private') as private_models,
-    COUNT(DISTINCT type) as distinct_types
-  FROM ng.catalogo_3d;
-`;
-
-export const GET_DB_STATUS = `
+export const GET_DB_METRICS = `
   SELECT 
     COUNT(*) as total_connections,
     COUNT(*) FILTER (WHERE state = 'active') as active_connections,
@@ -45,91 +10,81 @@ export const GET_DB_STATUS = `
   WHERE datname = current_database();
 `;
 
-// Gerenciamento de Usuários
-export const LIST_USERS = `
-  WITH user_counts AS (
+export const GET_USER_METRICS = `
+  SELECT 
+    COUNT(*) as total_users,
+    COUNT(*) FILTER (WHERE is_active = true) as active_users,
+    COUNT(*) FILTER (WHERE role = 'admin') as admin_users,
+    COUNT(*) FILTER (WHERE last_login >= NOW() - INTERVAL '24 hours') as active_last_24h
+  FROM ng.users;
+`;
+
+export const GET_MODEL_METRICS = `
+  SELECT 
+    COUNT(*) as total_models,
+    COUNT(*) FILTER (WHERE access_level = 'public') as public_models,
+    COUNT(*) FILTER (WHERE access_level = 'private') as private_models
+  FROM ng.catalogo_3d;
+`;
+
+export const GET_GROUP_METRICS = `
+  SELECT 
+    COUNT(*) as total_groups,
+    AVG(members) as avg_members_per_group
+  FROM (
+    SELECT g.id, COUNT(ug.user_id) as members
+    FROM ng.groups g
+    LEFT JOIN ng.user_groups ug ON g.id = ug.group_id
+    GROUP BY g.id
+  ) group_stats;
+`;
+
+// Health Check
+export const CHECK_DB_HEALTH = `
+  SELECT NOW() as timestamp;
+`;
+
+// Audit Trail
+export const CREATE_AUDIT_ENTRY = `
+  INSERT INTO ng.audit_trail (
+    action, 
+    actor_id,
+    target_type,
+    target_id,
+    target_name,
+    details,
+    ip,
+    user_agent
+  ) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+  ) RETURNING *;
+`;
+
+export const GET_AUDIT_ENTRIES = `
+  WITH filtered_entries AS (
     SELECT 
-      u.id,
-      COUNT(DISTINCT g.id) as group_count
-    FROM ng.users u
-    LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
-    LEFT JOIN ng.groups g ON ug.group_id = g.id
-    GROUP BY u.id
+      at.*,
+      u.username as actor_username
+    FROM ng.audit_trail at
+    JOIN ng.users u ON at.actor_id = u.id
+    WHERE
+      ($1::timestamptz IS NULL OR at.created_at >= $1) AND
+      ($2::timestamptz IS NULL OR at.created_at <= $2) AND
+      ($3::text IS NULL OR at.action = $3) AND
+      ($4::uuid IS NULL OR at.actor_id = $4) AND
+      ($5::uuid IS NULL OR at.target_id = $5) AND
+      ($6::text IS NULL OR 
+        to_tsvector('portuguese', 
+          COALESCE(at.target_name, '') || ' ' || 
+          COALESCE(at.details::text, '')
+        ) @@ plainto_tsquery('portuguese', $6)
+      )
   )
   SELECT 
-    u.id, 
-    u.username, 
-    u.email, 
-    u.role, 
-    u.is_active,
-    u.last_login,
-    u.created_at,
-    u.updated_at,
-    COALESCE(uc.group_count, 0) as group_count,
-    EXISTS (
-      SELECT 1 FROM ng.api_key_history 
-      WHERE user_id = u.id AND revoked_at IS NULL
-    ) as has_active_api_key
-  FROM ng.users u
-  LEFT JOIN user_counts uc ON u.id = uc.id
-  WHERE 
-    ($1::text IS NULL OR 
-      u.username ILIKE '%' || $1 || '%' OR 
-      u.email ILIKE '%' || $1 || '%'
-    )
-    AND ($2::text IS NULL OR u.role = $2)
-    AND ($3::boolean IS NULL OR u.is_active = $3)
-  ORDER BY 
-    CASE 
-      WHEN $4 = 'username_asc' THEN u.username
-    END ASC,
-    CASE 
-      WHEN $4 = 'username_desc' THEN u.username
-    END DESC,
-    CASE 
-      WHEN $4 = 'created_at_asc' THEN u.created_at
-    END ASC,
-    CASE 
-      WHEN $4 = 'created_at_desc' OR $4 IS NULL THEN u.created_at
-    END DESC
-  LIMIT $5 OFFSET $6;
-`;
-
-export const COUNT_USERS = `
-  SELECT COUNT(*)
-  FROM ng.users u
-  WHERE 
-    ($1::text IS NULL OR 
-      u.username ILIKE '%' || $1 || '%' OR 
-      u.email ILIKE '%' || $1 || '%'
-    )
-    AND ($2::text IS NULL OR u.role = $2)
-    AND ($3::boolean IS NULL OR u.is_active = $3);
-`;
-
-// Gerenciamento de Grupos
-export const GET_GROUP_MEMBERS = `
-  SELECT 
-    u.id,
-    u.username,
-    u.email,
-    u.role,
-    u.is_active,
-    ug.added_at,
-    creator.username as added_by,
-    COUNT(DISTINCT mug.group_id) as other_group_count
-  FROM ng.user_groups ug
-  JOIN ng.users u ON ug.user_id = u.id
-  JOIN ng.users creator ON ug.added_by = creator.id
-  LEFT JOIN ng.user_groups mug ON u.id = mug.user_id AND mug.group_id != $1
-  WHERE ug.group_id = $1
-  GROUP BY u.id, u.username, u.email, u.role, u.is_active, ug.added_at, creator.username
-  ORDER BY ug.added_at DESC
-  LIMIT $2 OFFSET $3;
-`;
-
-export const COUNT_GROUP_MEMBERS = `
-  SELECT COUNT(DISTINCT user_id)
-  FROM ng.user_groups
-  WHERE group_id = $1;
+    *,
+    COUNT(*) OVER() as total_count
+  FROM filtered_entries
+  ORDER BY created_at DESC
+  LIMIT $7
+  OFFSET $8;
 `;

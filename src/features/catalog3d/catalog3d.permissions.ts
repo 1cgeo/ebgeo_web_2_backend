@@ -12,6 +12,7 @@ import {
   UpdateModelPermissionsRequest,
 } from './catalog3d.types.js';
 import { UserRole } from '../auth/auth.types.js';
+import { createAudit } from '../../common/config/audit.js';
 
 export async function checkModelAccess(
   modelId: string,
@@ -113,6 +114,8 @@ export async function updateModelPermissions(req: Request, res: Response) {
     req.body as UpdateModelPermissionsRequest;
 
   try {
+    const currentModel = await db.one(LIST_MODEL_PERMISSIONS, [modelId]);
+
     await db.tx(async t => {
       // Atualizar nível de acesso
       if (access_level) {
@@ -131,6 +134,26 @@ export async function updateModelPermissions(req: Request, res: Response) {
       if (groupIds) {
         await updateGroupPermissions(t, modelId, groupIds);
       }
+    });
+
+    await createAudit(req, {
+      action: 'MODEL_PERMISSION_CHANGE',
+      actorId: req.user.userId,
+      targetType: 'MODEL',
+      targetId: modelId,
+      targetName: currentModel.model_name,
+      details: {
+        changes: {
+          access_level: access_level || undefined,
+          userPermissions: userIds?.length || 0,
+          groupPermissions: groupIds?.length || 0,
+          previous: {
+            access_level: currentModel.access_level,
+            userPermissions: currentModel.user_permissions.length,
+            groupPermissions: currentModel.group_permissions.length,
+          },
+        },
+      },
     });
 
     logger.logSecurity('Model permissions updated', {

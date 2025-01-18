@@ -1,27 +1,28 @@
 import { Router } from 'express';
-import { searchGeographicNames } from './geographic.module.js';
-import { searchValidation } from './geographic.validation.js';
+import {
+  searchGeographicNames,
+  listZones,
+  getZonePermissions,
+  createZone,
+  updateZonePermissions,
+  deleteZone,
+} from './geographic.module.js';
+import {
+  searchValidation,
+  createZoneValidation,
+  updateZonePermissionsValidation,
+} from './geographic.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { authorize } from '../auth/auth.middleware.js';
 import { UserRole } from '../auth/auth.types.js';
-import {
-  getZonePermissions,
-  addUserPermission,
-  removeUserPermission,
-  addGroupPermission,
-  removeGroupPermission,
-  updateZonePermissions,
-} from './geographic.permissions.js';
 
 const router = Router();
 
+// Rota de busca de nomes geográficos (pública com autenticação opcional)
 router.get('/busca', searchValidation, asyncHandler(searchGeographicNames));
 
-router.put(
-  '/zones/:zoneId/permissions',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(updateZonePermissions),
-);
+// Rotas de gerenciamento de zonas (admin only)
+router.get('/zones', authorize([UserRole.ADMIN]), asyncHandler(listZones));
 
 router.get(
   '/zones/:zoneId/permissions',
@@ -30,27 +31,23 @@ router.get(
 );
 
 router.post(
-  '/zones/:zoneId/permissions/users',
+  '/zones',
   authorize([UserRole.ADMIN]),
-  asyncHandler(addUserPermission),
+  createZoneValidation,
+  asyncHandler(createZone),
+);
+
+router.put(
+  '/zones/:zoneId/permissions',
+  authorize([UserRole.ADMIN]),
+  updateZonePermissionsValidation,
+  asyncHandler(updateZonePermissions),
 );
 
 router.delete(
-  '/zones/:zoneId/permissions/users/:userId',
+  '/zones/:zoneId',
   authorize([UserRole.ADMIN]),
-  asyncHandler(removeUserPermission),
-);
-
-router.post(
-  '/zones/:zoneId/permissions/groups',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(addGroupPermission),
-);
-
-router.delete(
-  '/zones/:zoneId/permissions/groups/:groupId',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(removeGroupPermission),
+  asyncHandler(deleteZone),
 );
 
 export default router;

@@ -12,6 +12,7 @@ import {
   UserQueryParams,
 } from './users.types.js';
 import { UserRole } from '../auth/auth.types.js';
+import { createAudit } from '../../common/config/audit.js';
 
 // Função utilitária para adicionar pepper à senha
 const addPepper = (password: string): string => {
@@ -91,6 +92,9 @@ export async function createUser(
   const { username, email, password, role, groupIds } = req.body;
 
   try {
+    if (!req.user?.userId) {
+      throw ApiError.unauthorized('Usuário não autenticado');
+    }
     const result = await db.tx(async t => {
       // Verificar se username já existe
       const existingUser = await t.oneOrNone(
@@ -134,6 +138,19 @@ export async function createUser(
       return t.one(queries.GET_USER_DETAILS, [newUser.id]);
     });
 
+    await createAudit(req, {
+      action: 'USER_CREATE',
+      actorId: req.user.userId,
+      targetType: 'USER',
+      targetId: result.id,
+      targetName: username,
+      details: {
+        role,
+        email,
+        groupCount: groupIds?.length || 0,
+      },
+    });
+
     logger.logAccess('User created', {
       userId: req.user?.userId,
       additionalInfo: {
@@ -167,6 +184,9 @@ export async function updateUser(
 
   try {
     const result = await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       // Verificar se usuário existe
       const user = await t.oneOrNone('SELECT * FROM ng.users WHERE id = $1', [
         id,
@@ -193,6 +213,39 @@ export async function updateUser(
         role,
         isActive,
       ]);
+
+      await createAudit(req, {
+        action: 'USER_UPDATE',
+        actorId: req.user.userId,
+        targetType: 'USER',
+        targetId: id,
+        targetName: user.username,
+        details: {
+          changes: {
+            email:
+              email !== undefined
+                ? {
+                    old: user.email,
+                    new: email,
+                  }
+                : undefined,
+            role:
+              role !== undefined
+                ? {
+                    old: user.role,
+                    new: role,
+                  }
+                : undefined,
+            isActive:
+              isActive !== undefined
+                ? {
+                    old: user.is_active,
+                    new: isActive,
+                  }
+                : undefined,
+          },
+        },
+      });
 
       return updatedUser;
     });
@@ -238,6 +291,9 @@ export async function updatePassword(
 
   try {
     await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       const user = await t.oneOrNone('SELECT * FROM ng.users WHERE id = $1', [
         id,
       ]);
@@ -259,6 +315,18 @@ export async function updatePassword(
           throw ApiError.badRequest('Senha atual incorreta');
         }
       }
+
+      await createAudit(req, {
+        action: 'USER_UPDATE',
+        actorId: req.user.userId,
+        targetType: 'USER',
+        targetId: id,
+        targetName: user.username,
+        details: {
+          passwordChanged: true,
+          changedBy: isAdmin ? 'admin' : 'self',
+        },
+      });
 
       // Hash da nova senha
       const hashedPassword = await bcrypt.hash(addPepper(newPassword), 10);
@@ -325,6 +393,9 @@ export async function updateProfile(
 
   try {
     const result = await db.tx(async t => {
+      if (!req.user?.userId) {
+        throw ApiError.unauthorized('Usuário não autenticado');
+      }
       // Verificar se email já existe
       if (email) {
         const existingEmail = await t.oneOrNone(
@@ -335,6 +406,26 @@ export async function updateProfile(
           throw ApiError.conflict('Email já está em uso');
         }
       }
+
+      await createAudit(req, {
+        action: 'USER_UPDATE',
+        actorId: req.user.userId,
+        targetType: 'USER',
+        targetId: userId,
+        targetName: req.user.username,
+        details: {
+          changes: {
+            email:
+              email !== undefined
+                ? {
+                    old: result.email,
+                    new: email,
+                  }
+                : undefined,
+          },
+          changedBy: 'self',
+        },
+      });
 
       // Atualizar perfil
       const updatedUser = await t.one(queries.UPDATE_USER, [
