@@ -2,71 +2,25 @@ import { Router } from 'express';
 import {
   login,
   logout,
-  generateNewApiKey,
-  getUserApiKey,
-  createUser,
-  validateApiKeyRequest,
+  getApiKey,
+  regenerateApiKey,
   getApiKeyHistory,
-  getUserDetails,
-  updateUser,
+  validateApiKey,
 } from './auth.module.js';
-import { authorize } from './auth.middleware.js';
+import { loginValidation } from './auth.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
-import { UserRole } from './auth.types.js';
-import {
-  loginValidation,
-  createUserValidation,
-  updateUserValidation,
-} from './auth.validation.js';
+import { authorize } from './auth.middleware.js';
 
 const router = Router();
 
+// Rotas públicas
 router.post('/login', loginValidation, asyncHandler(login));
+router.get('/validate-api-key', asyncHandler(validateApiKey));
 
-router.post('/logout', asyncHandler(logout));
-
-// Rota para validação de API key (nginx auth_request)
-router.get('/validate-api-key', asyncHandler(validateApiKeyRequest));
-
-// Rotas para usuários autenticados
-router.get(
-  '/api-key',
-  authorize([UserRole.USER, UserRole.ADMIN]),
-  asyncHandler(getUserApiKey),
-);
-
-router.post(
-  '/api-key/regenerate',
-  authorize([UserRole.USER, UserRole.ADMIN]),
-  asyncHandler(generateNewApiKey),
-);
-
-// Rotas administrativas
-router.post(
-  '/users',
-  authorize([UserRole.ADMIN]),
-  createUserValidation,
-  asyncHandler(createUser),
-);
-
-// Rota de histórico de API keys
-router.get(
-  '/api-key/history',
-  authorize([UserRole.USER, UserRole.ADMIN]),
-  asyncHandler(getApiKeyHistory),
-);
-
-router.get(
-  '/users/:id',
-  authorize([UserRole.ADMIN]),
-  asyncHandler(getUserDetails),
-);
-
-router.put(
-  '/users/:id',
-  authorize([UserRole.ADMIN]),
-  updateUserValidation,
-  asyncHandler(updateUser),
-);
+// Rotas que requerem autenticação
+router.post('/logout', authorize(), asyncHandler(logout));
+router.get('/api-key', authorize(), asyncHandler(getApiKey));
+router.post('/api-key/regenerate', authorize(), asyncHandler(regenerateApiKey));
+router.get('/api-key/history', authorize(), asyncHandler(getApiKeyHistory));
 
 export default router;

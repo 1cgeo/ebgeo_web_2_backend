@@ -14,6 +14,7 @@ import catalog3dRoutes from './features/catalog3d/catalog3d.routes.js';
 import groupsRoutes from './features/groups/groups.routes.js';
 import authRoutes from './features/auth/auth.routes.js';
 import adminRoutes from './features/admin/admin.routes.js';
+import usersRoutes from './features/users/users.routes.js';
 
 import { errorHandler } from './common/middleware/errorHandler.js';
 import { requestLogger } from './common/middleware/requestLogger.js';
@@ -55,6 +56,7 @@ app.use('/api/auth', authRoutes);
 // Middleware de autenticação global para todas as outras rotas
 app.use(authenticateRequest);
 
+app.use('/api/users', usersRoutes);
 app.use('/api/groups', groupsRoutes);
 app.use('/api/identify', identifyRoutes);
 app.use('/api/geographic', geographicRoutes);

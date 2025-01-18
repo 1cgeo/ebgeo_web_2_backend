@@ -91,13 +91,25 @@ const developmentConfig: LoggerOptions = {
     service: 'ebgeo-service',
   },
   transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'SYS:standard',
-      ignore: 'pid,hostname',
-    },
-  },
+    targets: [
+      {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      },
+      {
+        target: 'pino-roll',
+        level: 'info',
+        options: {
+          file: `${LOG_DIR}/app.log`,
+          // ...
+        },
+      }
+    ]
+  }
 };
 
 const productionConfig: LoggerOptions = {

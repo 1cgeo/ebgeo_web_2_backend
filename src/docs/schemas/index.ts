@@ -3,10 +3,12 @@ import { authSchemas } from './auth.schemas.js';
 import { commonSchemas } from './common.schemas.js';
 import { identifySchemas } from './identify.schemas.js';
 import { groupSchemas } from './groups.schemas.js';
+import { userSchemas } from './users.schemas.js';
 
 export const schemas: Record<string, OpenAPISchema> = {
   ...authSchemas,
   ...commonSchemas,
   ...identifySchemas,
   ...groupSchemas,
+  ...userSchemas,
 };
