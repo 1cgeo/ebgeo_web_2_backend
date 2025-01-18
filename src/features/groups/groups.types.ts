@@ -1,31 +1,40 @@
-import { ParamsDictionary } from 'express-serve-static-core';
-
 export interface Group {
   id: string;
   name: string;
   description?: string;
-  createdBy: string; // User ID
+  createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface UserGroup {
-  userId: string;
-  groupId: string;
-  addedBy: string; // User ID
-  addedAt: Date;
+export interface GroupDetails extends Group {
+  memberCount: number;
+  modelPermissions: number;
+  zonePermissions: number;
+  members: GroupMember[];
 }
 
-export interface CreateGroupBody {
+export interface GroupMember {
+  id: string;
+  username: string;
+  addedAt: Date;
+  addedBy: string;
+}
+
+export interface CreateGroupDTO {
   name: string;
   description?: string;
+  userIds?: string[];
 }
 
-export interface UpdateGroupParams extends ParamsDictionary {
-  groupId: string;
-}
-
-export interface UpdateGroupBody {
+export interface UpdateGroupDTO {
   name?: string;
   description?: string;
+  userIds?: string[];
+}
+
+export interface GroupQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
 }

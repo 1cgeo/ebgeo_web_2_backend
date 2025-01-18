@@ -1,6 +1,25 @@
-import { body, ValidationChain, param } from 'express-validator';
+import { body, query, param } from 'express-validator';
 
-export const createGroupValidation: ValidationChain[] = [
+export const listGroupsValidation = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Página deve ser um número inteiro maior que 0')
+    .toInt(),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limite deve ser entre 1 e 100')
+    .toInt(),
+  query('search')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 3 })
+    .withMessage('Termo de busca deve ter no mínimo 3 caracteres'),
+];
+
+export const createGroupValidation = [
   body('name')
     .trim()
     .notEmpty()
@@ -21,10 +40,22 @@ export const createGroupValidation: ValidationChain[] = [
     .withMessage('Descrição deve ser uma string')
     .isLength({ max: 500 })
     .withMessage('Descrição deve ter no máximo 500 caracteres'),
+
+  body('userIds')
+    .optional()
+    .isArray()
+    .withMessage('userIds deve ser um array')
+    .custom((userIds: string[]) => {
+      if (!userIds?.length) return true;
+      return userIds.every(id =>
+        /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id),
+      );
+    })
+    .withMessage('userIds contém UUIDs inválidos'),
 ];
 
-export const updateGroupValidation: ValidationChain[] = [
-  param('groupId').isUUID().withMessage('ID do grupo deve ser um UUID válido'),
+export const updateGroupValidation = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
 
   body('name')
     .optional()
@@ -45,4 +76,16 @@ export const updateGroupValidation: ValidationChain[] = [
     .withMessage('Descrição deve ser uma string')
     .isLength({ max: 500 })
     .withMessage('Descrição deve ter no máximo 500 caracteres'),
+
+  body('userIds')
+    .optional()
+    .isArray()
+    .withMessage('userIds deve ser um array')
+    .custom((userIds: string[]) => {
+      if (!userIds?.length) return true;
+      return userIds.every(id =>
+        /^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id),
+      );
+    })
+    .withMessage('userIds contém UUIDs inválidos'),
 ];

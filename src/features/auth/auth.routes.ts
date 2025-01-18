@@ -10,7 +10,7 @@ import {
   getUserDetails,
   updateUser,
 } from './auth.module.js';
-import { authenticateRequest, authorize } from './auth.middleware.js';
+import { authorize } from './auth.middleware.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from './auth.types.js';
 import {
