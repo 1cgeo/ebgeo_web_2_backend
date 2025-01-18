@@ -80,16 +80,3 @@ CREATE TABLE ng.api_key_history (
 
 CREATE INDEX idx_api_key_history_user ON ng.api_key_history(user_id);
 CREATE INDEX idx_api_key_history_key ON ng.api_key_history(api_key);
-
--- Criar usuário admin inicial
-INSERT INTO ng.users (
-    username, 
-    password, 
-    email, 
-    role
-) VALUES (
-    'admin',
-    crypt('change-this-password' || 'change-this-salt', gen_salt('bf')),
-    'admin@example.com',
-    'admin'
-) ON CONFLICT DO NOTHING;

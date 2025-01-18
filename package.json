@@ -9,6 +9,7 @@
         "npm": ">=8.0.0"
     },
     "scripts": {
+        "create-admin": "node scripts/createAdmin.js",
         "start": "node dist/index.js",
         "dev": "nodemon",
         "build": "tsc",
