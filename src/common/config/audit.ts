@@ -20,7 +20,7 @@ export async function createAudit(
 ): Promise<void> {
   const { action, actorId, targetType, targetId, targetName, details } = params;
 
-  await db.none(`SELECT ng.create_audit_log($1, $2, $3, $4, $5, $6, $7, $8)`, [
+  await db.one(`SELECT ng.create_audit_log($1, $2, $3, $4, $5, $6, $7, $8)`, [
     action,
     actorId,
     targetType,

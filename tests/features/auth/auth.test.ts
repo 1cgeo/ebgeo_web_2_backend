@@ -7,14 +7,14 @@ describe('Auth Routes', () => {
   describe('POST /api/auth/login', () => {
     it('should authenticate user with valid credentials', async () => {
       // Arrange
-      const { user } = await createTestUser(UserRole.USER);
+      const { user, password } = await createTestUser(UserRole.USER);
       
       // Act
       const response = await testRequest
         .post('/api/auth/login')
         .send({
           username: user.username,
-          password: 'password123'
+          password: password
         });
 
       // Assert

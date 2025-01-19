@@ -42,7 +42,7 @@ export class EnvironmentManager {
     return EnvironmentManager.instance;
   }
 
-  private buildHelmetConfig(isDevelopment: boolean): HelmetOptions {
+  private buildHelmetConfig(isProduction: boolean): HelmetOptions {
     const commonConfig = {
       frameguard: {
         action: 'deny' as const,
@@ -56,7 +56,7 @@ export class EnvironmentManager {
       },
     };
 
-    if (isDevelopment) {
+    if (!isProduction) {
       return {
         ...commonConfig,
         contentSecurityPolicy: {
@@ -133,7 +133,7 @@ export class EnvironmentManager {
         maxConnections: isProduction ? 20 : isDevelopment ? 10 : 5,
         idleTimeoutMillis: isProduction ? 30000 : isDevelopment ? 30000 : 10000,
       },
-      helmetConfig: this.buildHelmetConfig(isDevelopment),
+      helmetConfig: this.buildHelmetConfig(isProduction),
     };
   }
 

@@ -16,12 +16,19 @@ const db = initializeDatabase();
 // Fechar conexão após todos os testes
 afterAll(async () => {
   await db.tx(async t => {
-    await t.none('DELETE FROM ng.users');
-    await t.none('DELETE FROM ng.groups');
-    await t.none('DELETE FROM ng.nomes_geograficos');
-    await t.none('DELETE FROM ng.catalogo_3d');
-    await t.none('DELETE FROM ng.identify');
-    await t.none('DELETE FROM ng.audit_trail');
+    await t.none('TRUNCATE TABLE ng.user_groups CASCADE');
+    await t.none('TRUNCATE TABLE ng.api_key_history CASCADE');
+    await t.none('TRUNCATE TABLE ng.model_permissions CASCADE');
+    await t.none('TRUNCATE TABLE ng.zone_permissions CASCADE');
+    await t.none('TRUNCATE TABLE ng.audit_trail CASCADE');
+    await t.none('TRUNCATE TABLE ng.model_group_permissions CASCADE');
+    await t.none('TRUNCATE TABLE ng.zone_group_permissions CASCADE');
+    
+    await t.none('TRUNCATE TABLE ng.groups CASCADE');
+    await t.none('TRUNCATE TABLE ng.users CASCADE');
+    await t.none('TRUNCATE TABLE ng.nomes_geograficos CASCADE');
+    await t.none('TRUNCATE TABLE ng.catalogo_3d CASCADE');
+    await t.none('TRUNCATE TABLE ng.identify CASCADE');
   });
   await closeDatabase();
 });

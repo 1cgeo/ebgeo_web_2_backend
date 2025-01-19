@@ -17,23 +17,6 @@ export const errorHandler = (
 ): void => {
   // Estruturar log baseado no tipo de erro
   if (err instanceof ApiError) {
-    // Log para erros conhecidos da API
-    logger.logError(err, {
-      category: LogCategory.API,
-      endpoint: req.path,
-      method: req.method,
-      requestId: req.id,
-      statusCode: err.statusCode,
-      additionalInfo: {
-        isOperational: err.isOperational,
-        details: err.details,
-        query: req.query,
-        ip: req.ip,
-        userAgent: req.get('user-agent'),
-        userId: req.user?.userId,
-      },
-    });
-
     // Resposta para erros da API
     res.status(err.statusCode).json({
       status: 'error',

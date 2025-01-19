@@ -77,7 +77,8 @@ describe('Groups Routes', () => {
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('name', groupData.name);
       expect(response.body).toHaveProperty('description', groupData.description);
-      expect(response.body).toHaveProperty('createdBy', user.id);
+      expect(response.body).toHaveProperty('created_by', user.id);
+      expect(response.body).toHaveProperty('created_by_name', user.username);
 
       // Verificar se foi criado no banco
       const group = await db.one('SELECT * FROM ng.groups WHERE id = $1', [response.body.id]);

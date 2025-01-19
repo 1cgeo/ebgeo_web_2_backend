@@ -234,7 +234,11 @@ const validateGeneral = (): void => {
     });
   }
 
-  const validEnvironments: Environment[] = ['development', 'production'];
+  const validEnvironments: Environment[] = [
+    'development',
+    'production',
+    'test',
+  ];
   if (
     process.env.NODE_ENV &&
     !validEnvironments.includes(process.env.NODE_ENV as Environment)
@@ -242,7 +246,7 @@ const validateGeneral = (): void => {
     errors.push({
       context,
       variable: 'NODE_ENV',
-      message: 'Must be one of: development, production',
+      message: 'Must be one of: development, production, test',
     });
   }
 

@@ -34,6 +34,14 @@ export async function login(
     const user = await db.oneOrNone(queries.VALIDATE_LOGIN, [username]);
 
     if (!user || !user.is_active) {
+      logger.logSecurity('Failed login attempt', {
+        endpoint: '/api/auth/login',
+        additionalInfo: {
+          username,
+          reason: 'invalid_credentials',  
+          ip: req.ip
+        }
+      });
       throw ApiError.unauthorized('Credenciais inválidas');
     }
 
@@ -43,6 +51,14 @@ export async function login(
     );
 
     if (!isValidPassword) {
+      logger.logSecurity('Failed login attempt', {
+        endpoint: '/api/auth/login',
+        additionalInfo: {
+          username,
+          reason: 'invalid_credentials',  
+          ip: req.ip
+        }
+      });
       throw ApiError.unauthorized('Credenciais inválidas');
     }
 
@@ -102,13 +118,15 @@ export async function login(
 
     return res.json(response);
   } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.AUTH,
-      additionalInfo: {
-        username,
-        operation: 'login',
-      },
-    });
+    if (!(error instanceof ApiError)) {
+      logger.logError(error instanceof Error ? error : new Error(String(error)), {
+        category: LogCategory.AUTH,
+        additionalInfo: {
+          username,
+          operation: 'login',
+        },
+      });
+    }
     throw error;
   }
 }
@@ -269,6 +287,19 @@ export async function validateApiKey(req: Request, res: Response) {
       },
     });
     return res.status(401).json({ message: 'API key não fornecida' });
+  }
+
+  const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(apiKey);
+  
+  if (!isValidUUID) {
+    logger.logSecurity('Invalid API key format', {
+      additionalInfo: {
+        ip: req.ip,
+        path: req.path,
+        reason: 'invalid_format'
+      }
+    });
+    return res.status(401).json({ message: 'API key inválida' });
   }
 
   try {

@@ -79,11 +79,33 @@ function validateLogConfig(): void {
   }
 }
 
-// Executa validação na inicialização
-validateLogConfig();
+// Executa validação na inicialização, exceto em ambiente de teste
+if (process.env.NODE_ENV !== 'test') {
+  validateLogConfig();
+}
 
 // Configuração do logger
 const LOG_DIR = process.env.LOG_DIR || 'logs';
+
+const testConfig: LoggerOptions = {
+  level: 'debug',
+  base: {
+    env: process.env.NODE_ENV,
+    service: 'ebgeo-service',
+  },
+  transport: {
+    targets: [
+      {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      }
+    ],
+  },
+};
 
 const developmentConfig: LoggerOptions = {
   level: 'debug',
@@ -106,7 +128,9 @@ const developmentConfig: LoggerOptions = {
         level: 'info',
         options: {
           file: `${LOG_DIR}/app.log`,
-          // ...
+          frequency: 'daily',
+          size: '10m',
+          mkdir: true,
         },
       },
     ],
@@ -236,9 +260,18 @@ const productionConfig: LoggerOptions = {
 };
 
 // Criar o logger base com a configuração apropriada
-const baseLogger = pino(
-  process.env.NODE_ENV === 'production' ? productionConfig : developmentConfig,
-);
+const getLoggerConfig = () => {
+  switch (process.env.NODE_ENV) {
+    case 'production':
+      return productionConfig;
+    case 'test':
+      return testConfig;
+    default:
+      return developmentConfig;
+  }
+};
+
+const baseLogger = pino(getLoggerConfig());
 
 // Adicionar informação do caller
 const logger = pinoCaller(baseLogger);
@@ -262,14 +295,21 @@ const structuredLogger: StructuredLogger = {
     const errorMessage = error instanceof Error ? error.message : error;
     const errorStack = error instanceof Error ? error.stack : undefined;
 
+    const err = new Error();
+    Error.captureStackTrace(err, this.logError);
+    const callerStack = err.stack?.split('\n')[1];
+
     logger.error({
       msg: errorMessage,
       errorStack,
+      callerStack,
       ...details,
     });
   },
 
   logMetric(name: string, value: number, details: Partial<LogDetails>) {
+    if (process.env.NODE_ENV === 'test') return;
+
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
@@ -314,6 +354,8 @@ const structuredLogger: StructuredLogger = {
   },
 
   logPerformance(message: string, details: Partial<LogDetails>) {
+    if (process.env.NODE_ENV === 'test') return;
+
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }

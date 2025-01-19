@@ -9,8 +9,9 @@ export const createTestUser = async (
   isActive: boolean = true
 ) => {
   const userId = uuidv4();
+  const password = "password123";
   const pepper = process.env.PASSWORD_PEPPER || 'test_pepper';
-  const hashedPassword = await bcrypt.hash(`password123${pepper}`, 10);
+  const hashedPassword = await bcrypt.hash(`${password}${pepper}`, 10);
 
   const user = await db.one(
     `INSERT INTO ng.users 
@@ -28,10 +29,16 @@ export const createTestUser = async (
     ]
   );
 
+  const createdUser = await db.one('SELECT * FROM ng.users WHERE id = $1', [userId]);
+  if (!createdUser) {
+    throw new Error('Failed to create test user');
+  }
+
   const token = jwt.sign(
     { userId: user.id, username: user.username, role: user.role },
-    process.env.JWT_SECRET || 'test_secret'
+    process.env.JWT_SECRET || 'test_secret',
+    { expiresIn: '15m' }
   );
 
-  return { user, token };
+  return { user, token, password };
 };
