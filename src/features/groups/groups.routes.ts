@@ -13,27 +13,28 @@ import {
   updateGroupValidation,
   listGroupsValidation,
 } from './groups.validation.js';
+import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
 router.get(
   '/',
   authorize([UserRole.ADMIN]),
-  listGroupsValidation,
+  validateRequest(listGroupsValidation),
   asyncHandler(listGroups),
 );
 
 router.post(
   '/',
   authorize([UserRole.ADMIN]),
-  createGroupValidation,
+  validateRequest(createGroupValidation),
   asyncHandler(createGroup),
 );
 
 router.put(
   '/:id',
   authorize([UserRole.ADMIN]),
-  updateGroupValidation,
+  validateRequest(updateGroupValidation),
   asyncHandler(updateGroup),
 );
 

@@ -102,7 +102,7 @@ const testConfig: LoggerOptions = {
           translateTime: 'SYS:standard',
           ignore: 'pid,hostname',
         },
-      }
+      },
     ],
   },
 };

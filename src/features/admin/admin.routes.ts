@@ -12,6 +12,7 @@ import {
 import { authorize } from '../auth/auth.middleware.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from '../auth/auth.types.js';
+import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.get(
 router.get(
   '/logs',
   authorize([UserRole.ADMIN]),
-  logQueryValidation,
+  validateRequest(logQueryValidation),
   asyncHandler(queryLogs),
 );
 
@@ -39,7 +40,7 @@ router.get(
 router.get(
   '/audit',
   authorize([UserRole.ADMIN]),
-  auditQueryValidation,
+  validateRequest(auditQueryValidation),
   asyncHandler(queryAudit),
 );
 

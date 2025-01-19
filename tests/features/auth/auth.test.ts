@@ -2,6 +2,7 @@ import { db } from '../../../src/common/config/database.js';
 import { createTestUser } from '../../helpers/auth.helper.js';
 import { testRequest } from '../../helpers/request.helper.js';
 import { UserRole } from '../../../src/features/auth/auth.types.js';
+import jwt from 'jsonwebtoken';
 
 describe('Auth Routes', () => {
   describe('POST /api/auth/login', () => {
@@ -60,6 +61,52 @@ describe('Auth Routes', () => {
       // Assert
       expect(response.status).toBe(401);
     });
+
+    it('should reject login with missing username', async () => {
+      // Act
+      const response = await testRequest
+        .post('/api/auth/login')
+        .send({
+          password: 'password123'
+        });
+
+      // Assert
+      expect(response.status).toBe(422);
+      expect(response.body).toHaveProperty('details');
+    });
+
+    it('should reject login with missing password', async () => {
+      // Act
+      const response = await testRequest
+        .post('/api/auth/login')
+        .send({
+          username: 'testuser'
+        });
+
+      // Assert
+      expect(response.status).toBe(422);
+      expect(response.body).toHaveProperty('details');
+    });
+
+    it('should set HTTP-only cookie with token on successful login', async () => {
+      // Arrange
+      const { user, password } = await createTestUser(UserRole.USER);
+      
+      // Act
+      const response = await testRequest
+        .post('/api/auth/login')
+        .send({
+          username: user.username,
+          password: password
+        });
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.headers['set-cookie']).toBeDefined();
+      const cookie = response.headers['set-cookie'][0];
+      expect(cookie).toContain('HttpOnly');
+      expect(cookie).toContain('token=');
+    });
   });
 
   describe('GET /api/auth/validate-api-key', () => {
@@ -82,6 +129,43 @@ describe('Auth Routes', () => {
       const response = await testRequest
         .get('/api/auth/validate-api-key')
         .set('x-api-key', 'invalid-key');
+
+      // Assert
+      expect(response.status).toBe(401);
+    });
+
+    it('should validate API key via query parameter', async () => {
+      // Arrange
+      const { user } = await createTestUser();
+
+      // Act
+      const response = await testRequest
+        .get('/api/auth/validate-api-key')
+        .query({ api_key: user.api_key });
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'API key válida');
+    });
+
+    it('should reject when no API key is provided', async () => {
+      // Act
+      const response = await testRequest
+        .get('/api/auth/validate-api-key');
+
+      // Assert
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'API key não fornecida');
+    });
+
+    it('should reject API key from inactive user', async () => {
+      // Arrange
+      const { user } = await createTestUser(UserRole.USER, false);
+
+      // Act
+      const response = await testRequest
+        .get('/api/auth/validate-api-key')
+        .set('x-api-key', user.api_key);
 
       // Assert
       expect(response.status).toBe(401);
@@ -109,6 +193,42 @@ describe('Auth Routes', () => {
 
       // Assert
       expect(response.status).toBe(401);
+    });
+
+    it('should clear auth cookie on logout', async () => {
+      // Arrange
+      const { token } = await createTestUser();
+
+      // Act
+      const response = await testRequest
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.headers['set-cookie']).toBeDefined();
+      const cookie = response.headers['set-cookie'][0];
+      expect(cookie).toContain('token=;');
+      expect(cookie).toContain('Expires=Thu, 01 Jan 1970');
+    });
+
+    it('should handle multiple logout attempts', async () => {
+      // Arrange
+      const { token } = await createTestUser();
+
+      // Act - First logout
+      const response1 = await testRequest
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Act - Second logout with same token
+      const response2 = await testRequest
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert
+      expect(response1.status).toBe(200);
+      expect(response2.status).toBe(200);
     });
   });
 
@@ -145,5 +265,154 @@ describe('Auth Routes', () => {
       // Assert
       expect(response.status).toBe(401);
     });
+
+    it('should maintain API key history order', async () => {
+      // Arrange
+      const { user, token } = await createTestUser();
+      const originalApiKey = user.api_key;
+
+      // Act - Generate multiple new keys
+      await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${token}`);
+      
+      await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Get history
+      const historyResponse = await testRequest
+        .get('/api/auth/api-key/history')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert
+      expect(historyResponse.body.history).toHaveLength(2);
+      expect(historyResponse.body.history[0].apiKey).not.toBe(originalApiKey);
+      expect(historyResponse.body.history[1].apiKey).not.toBe(originalApiKey);
+      expect((new Date(historyResponse.body.history[0].createdAt)).getTime())
+        .toBeGreaterThan((new Date(historyResponse.body.history[1].createdAt)).getTime());
+    });
+
+    it('should update user record with new API key', async () => {
+      // Arrange
+      const { user, token } = await createTestUser();
+      const oldApiKey = user.api_key;
+
+      // Act
+      await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert - Check database directly
+      const updatedUser = await db.one('SELECT * FROM ng.users WHERE id = $1', [user.id]);
+      expect(updatedUser.api_key).not.toBe(oldApiKey);
+      expect(updatedUser.api_key_created_at).not.toBe(user.api_key_created_at);
+    });
   });
+
+  describe('GET /api/auth/api-key/history', () => {
+    it('should return empty history for new user', async () => {
+      // Arrange
+      const { user, token } = await createTestUser();
+
+      // Act
+      const response = await testRequest
+        .get('/api/auth/api-key/history')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('userId', user.id);
+      expect(response.body.history).toBeInstanceOf(Array);
+      expect(response.body.history).toHaveLength(0);
+    });
+
+    it('should show multiple history entries after regenerations', async () => {
+      // Arrange
+      const { token } = await createTestUser();
+      
+      // Generate two new API keys
+      await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${token}`);
+      await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Act
+      const response = await testRequest
+        .get('/api/auth/api-key/history')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.history).toHaveLength(2);
+      expect(response.body.history[0].isActive).toBe(false);
+      expect(response.body.history[1].isActive).toBe(false);
+      expect(response.body.history[0].revokedAt).toBeTruthy();
+    });
+
+    it('should return 401 with invalid token', async () => {
+      // Act
+      const response = await testRequest
+        .get('/api/auth/api-key/history')
+        .set('Authorization', 'Bearer invalid_token');
+
+      // Assert
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('JWT Token Validation', () => {
+    it('should reject expired token', async () => {
+      // Arrange
+      const { user } = await createTestUser();
+      const expiredToken = jwt.sign(
+        { userId: user.id, username: user.username, role: user.role },
+        process.env.JWT_SECRET || 'test_secret',
+        { expiresIn: '0s' }
+      );
+
+      // Act
+      const response = await testRequest
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${expiredToken}`);
+
+      // Assert
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'Token expirado');
+    });
+
+    it('should reject token with invalid signature', async () => {
+      // Arrange
+      const { user } = await createTestUser();
+      const invalidToken = jwt.sign(
+        { userId: user.id, username: user.username, role: user.role },
+        'wrong_secret'
+      );
+
+      // Act
+      const response = await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', `Bearer ${invalidToken}`);
+
+      // Assert
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'Token inválido');
+    });
+
+    it('should reject malformed token', async () => {
+      // Act
+      const response = await testRequest
+        .post('/api/auth/api-key/regenerate')
+        .set('Authorization', 'Bearer not.a.valid.token');
+
+      // Assert
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'Token inválido');
+    });
+  });
+
+
+
 });

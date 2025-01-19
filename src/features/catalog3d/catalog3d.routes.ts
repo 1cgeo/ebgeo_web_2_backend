@@ -11,10 +11,15 @@ import {
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from '../auth/auth.types.js';
 import { authorize } from '../auth/auth.middleware.js';
+import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
-router.get('/catalogo3d', searchValidation, asyncHandler(searchCatalog3D));
+router.get(
+  '/catalogo3d',
+  validateRequest(searchValidation),
+  asyncHandler(searchCatalog3D),
+);
 
 // Rotas de gerenciamento de permissões (apenas admin)
 router.get(
@@ -26,7 +31,7 @@ router.get(
 router.put(
   '/permissions/:modelId',
   authorize([UserRole.ADMIN]),
-  updatePermissionsValidation,
+  validateRequest(updatePermissionsValidation),
   asyncHandler(updateModelPermissions),
 );
 

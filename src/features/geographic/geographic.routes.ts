@@ -15,11 +15,16 @@ import {
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { authorize } from '../auth/auth.middleware.js';
 import { UserRole } from '../auth/auth.types.js';
+import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
 // Rota de busca de nomes geográficos (pública com autenticação opcional)
-router.get('/busca', searchValidation, asyncHandler(searchGeographicNames));
+router.get(
+  '/busca',
+  validateRequest(searchValidation),
+  asyncHandler(searchGeographicNames),
+);
 
 // Rotas de gerenciamento de zonas (admin only)
 router.get('/zones', authorize([UserRole.ADMIN]), asyncHandler(listZones));
@@ -33,14 +38,14 @@ router.get(
 router.post(
   '/zones',
   authorize([UserRole.ADMIN]),
-  createZoneValidation,
+  validateRequest(createZoneValidation),
   asyncHandler(createZone),
 );
 
 router.put(
   '/zones/:zoneId/permissions',
   authorize([UserRole.ADMIN]),
-  updateZonePermissionsValidation,
+  validateRequest(updateZonePermissionsValidation),
   asyncHandler(updateZonePermissions),
 );
 

@@ -18,6 +18,7 @@ import {
   updatePasswordValidation,
   updateProfileValidation,
 } from './users.validation.js';
+import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ const router = Router();
 router.get(
   '/',
   authorize([UserRole.ADMIN]),
-  listUsersValidation,
+  validateRequest(listUsersValidation),
   asyncHandler(listUsers),
 );
 
@@ -34,14 +35,14 @@ router.get('/:id', authorize([UserRole.ADMIN]), asyncHandler(getUserDetails));
 router.post(
   '/',
   authorize([UserRole.ADMIN]),
-  createUserValidation,
+  validateRequest(createUserValidation),
   asyncHandler(createUser),
 );
 
 router.put(
   '/:id',
   authorize([UserRole.ADMIN]),
-  updateUserValidation,
+  validateRequest(updateUserValidation),
   asyncHandler(updateUser),
 );
 
@@ -55,7 +56,7 @@ router.get(
 router.put(
   '/me',
   authorize([UserRole.ADMIN, UserRole.USER]),
-  updateProfileValidation,
+  validateRequest(updateProfileValidation),
   asyncHandler(updateProfile),
 );
 
@@ -63,7 +64,7 @@ router.put(
 router.put(
   '/:id/password',
   authorize([UserRole.ADMIN, UserRole.USER]),
-  updatePasswordValidation,
+  validateRequest(updatePasswordValidation),
   asyncHandler(updatePassword),
 );
 

@@ -72,121 +72,243 @@ npm start
 - `npm start`: Inicia o servidor em produção
 - `npm run dev`: Inicia o servidor em desenvolvimento com nodemon
 - `npm run build`: Compila o TypeScript
+- `npm run create-admin`: Cria um novo usuário administrador
 - `npm run type-check`: Verifica tipos sem gerar build
 - `npm run lint`: Executa o ESLint
 - `npm run lint-full`: Executa verificação de tipos e ESLint
+- `npm test`: Executa os testes
+- `npm run test:watch`: Executa os testes em modo watch
+- `npm run test:coverage`: Executa os testes com cobertura
 
-## Endpoints
+## API Endpoints
 
 ### Autenticação
+
 ```
 POST /api/auth/login
+Description: Autentica usuário e retorna token JWT
 Body: { username: string, password: string }
-Description: Autentica um usuário e retorna um token JWT
+Response: { user: UserInfo, token: string }
 
 POST /api/auth/logout
 Auth: Required
-Description: Realiza o logout do usuário atual
+Description: Realiza logout do usuário atual
 
 GET /api/auth/api-key
 Auth: Required
-Description: Obtém a API key do usuário atual
+Description: Obtém API key do usuário atual
 
 POST /api/auth/api-key/regenerate
 Auth: Required
-Description: Gera uma nova API key para o usuário
+Description: Gera nova API key para o usuário
 
 GET /api/auth/api-key/history
 Auth: Required
-Description: Retorna o histórico de API keys do usuário
-
-POST /api/auth/users
-Auth: Admin Only
-Body: { username: string, password: string, email: string, role: 'admin'|'user' }
-Description: Cria um novo usuário
+Description: Retorna histórico de API keys
 
 GET /api/auth/validate-api-key
-Query: api_key ou Header: x-api-key
-Description: Valida uma API key (usado pelo nginx auth_request)
+Query/Header: api_key ou x-api-key
+Description: Valida API key
 ```
 
-### Gerenciamento de Grupos
-```
-GET /api/auth/groups
-Auth: User/Admin
-Description: Lista todos os grupos do usuário
+### Usuários
 
-POST /api/auth/groups
-Auth: Admin Only
+```
+GET /api/users
+Auth: Admin
+Query: 
+  - page: number
+  - limit: number
+  - search: string
+  - status: 'active'|'inactive'|'all'
+  - role: 'admin'|'user'|'all'
+Description: Lista usuários com filtros
+
+POST /api/users
+Auth: Admin
 Body: { 
+  username: string,
+  email: string,
+  password: string,
+  role: 'admin'|'user',
+  groupIds?: string[]
+}
+Description: Cria novo usuário
+
+GET /api/users/:id
+Auth: Admin
+Description: Obtém detalhes do usuário
+
+PUT /api/users/:id
+Auth: Admin
+Body: {
+  email?: string,
+  role?: 'admin'|'user',
+  isActive?: boolean
+}
+Description: Atualiza usuário
+
+PUT /api/users/:id/password
+Auth: Admin/Self
+Body: {
+  currentPassword?: string,
+  newPassword: string
+}
+Description: Altera senha do usuário
+
+GET /api/users/me
+Auth: Required
+Description: Obtém perfil do usuário atual
+
+PUT /api/users/me
+Auth: Required
+Body: { email?: string }
+Description: Atualiza perfil do usuário atual
+```
+
+### Grupos
+
+```
+GET /api/groups
+Auth: Admin
+Query:
+  - page: number
+  - limit: number
+  - search: string
+Description: Lista grupos
+
+POST /api/groups
+Auth: Admin
+Body: {
   name: string,
-  description?: string 
+  description?: string,
+  userIds?: string[]
 }
-Description: Cria um novo grupo
+Description: Cria novo grupo
 
-PUT /api/auth/groups/:groupId
-Auth: Admin Only
-Body: { 
+PUT /api/groups/:id
+Auth: Admin
+Body: {
   name?: string,
-  description?: string 
+  description?: string,
+  userIds?: string[]
 }
-Description: Atualiza um grupo existente
-```
+Description: Atualiza grupo
 
-
-### Identificação de Modelos
-
-```
-GET /api/identify/feicoes
-Query params:
-- lat: latitude (obrigatório)
-- lon: longitude (obrigatório)
-- z: altitude (obrigatório)
-Description: Identifica modelo 3D na coordenada informada
+DELETE /api/groups/:id
+Auth: Admin
+Description: Remove grupo
 ```
 
 ### Nomes Geográficos
+
 ```
 GET /api/geographic/busca
-Query params:
-- q: termo de busca (obrigatório, mín. 3 caracteres)
-- lat: latitude (obrigatório)
-- lon: longitude (obrigatório)
+Query:
+  - q: string (min. 3 caracteres)
+  - lat: number
+  - lon: number
+Description: Busca nomes geográficos por similaridade e proximidade
+
+GET /api/geographic/zones
+Auth: Required
+Description: Lista zonas geográficas
+
+POST /api/geographic/zones
+Auth: Admin
+Body: {
+  name: string,
+  description?: string,
+  geom: GeoJSON,
+  userIds?: string[],
+  groupIds?: string[]
+}
+Description: Cria nova zona
 
 GET /api/geographic/zones/:zoneId/permissions
-Auth: Admin Only
+Auth: Admin
 Description: Lista permissões de uma zona
 
 PUT /api/geographic/zones/:zoneId/permissions
-Auth: Admin Only
+Auth: Admin
 Body: {
   userIds?: string[],
   groupIds?: string[]
 }
 Description: Atualiza permissões de uma zona
+
+DELETE /api/geographic/zones/:zoneId
+Auth: Admin
+Description: Remove zona
 ```
 
 ### Catálogo 3D
+
 ```
 GET /api/catalog3d/catalogo3d
 Auth: Required
-Query params:
-- q: termo de busca (opcional)
-- page: página (opcional, default: 1)
-- nr_records: registros por página (opcional, default: 10, max: 100)
+Query:
+  - q?: string
+  - page?: number
+  - nr_records?: number
+Description: Busca no catálogo 3D
 
 GET /api/catalog3d/permissions/:modelId
-Auth: Admin Only
+Auth: Admin
 Description: Lista permissões de um modelo
 
 PUT /api/catalog3d/permissions/:modelId
-Auth: Admin Only
+Auth: Admin
 Body: {
   access_level?: 'public'|'private',
   userIds?: string[],
   groupIds?: string[]
 }
 Description: Atualiza permissões de um modelo
+```
+
+### Identificação de Modelos
+
+```
+GET /api/identify/feicoes
+Query:
+  - lat: number
+  - lon: number
+  - z: number
+Description: Identifica feição mais próxima das coordenadas 3D
+```
+
+### Administração
+
+```
+GET /api/admin/health
+Auth: Admin
+Description: Verifica saúde do sistema
+
+GET /api/admin/metrics
+Auth: Admin
+Description: Obtém métricas do sistema
+
+GET /api/admin/logs
+Auth: Admin
+Query:
+  - startDate?: Date
+  - endDate?: Date
+  - level?: 'ERROR'|'WARN'|'INFO'|'DEBUG'
+  - category?: LogCategory
+  - search?: string
+Description: Consulta logs do sistema
+
+GET /api/admin/audit
+Auth: Admin
+Query:
+  - startDate?: Date
+  - endDate?: Date
+  - action?: AuditAction
+  - actorId?: string
+  - targetId?: string
+  - search?: string
+Description: Consulta trilha de auditoria
 ```
 
 ## Arquitetura
@@ -200,10 +322,18 @@ src/
 │   ├── errors/      # Tratamento de erros
 │   └── middleware/  # Middlewares Express
 ├── features/        # Módulos de funcionalidades
+│   ├── admin/       # Feature de administração
 │   ├── auth/        # Feature de autenticação
-│   ├── identify/   # Feature de identificação de modelos
+│   ├── users/       # Feature de usuários
+│   ├── groups/      # Feature de grupos
+│   ├── identify/    # Feature de identificação de modelos
 │   ├── geographic/  # Feature de nomes geográficos
 │   └── catalog3d/   # Feature de catálogo 3D
+├── docs/           # Documentação OpenAPI/Swagger
 ├── app.ts          # Configuração do Express
-└── index.ts       # Ponto de entrada da aplicação
+└── index.ts        # Ponto de entrada da aplicação
 ```
+
+## Documentação
+
+A documentação completa da API está disponível em `/api-docs` quando o servidor está em execução. Ela é gerada automaticamente usando OpenAPI/Swagger.
