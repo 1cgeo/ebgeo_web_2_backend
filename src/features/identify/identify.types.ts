@@ -10,6 +10,6 @@ export interface Feature {
   model_name?: string;
   model_description?: string;
   geom: any;
-  z_distance?: number;
-  xy_distance?: number;
+  z_distance: number;
+  xy_distance: number;
 }

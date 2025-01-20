@@ -65,15 +65,15 @@ describe('Geographic Routes', () => {
     describe('GET /api/geographic/zones', () => {
       it('should list zones for admin user', async () => {
         // Arrange
-        const { token } = await createTestUser(UserRole.ADMIN);
+        const { token, user } = await createTestUser(UserRole.ADMIN);
         await db.none(`
           INSERT INTO ng.geographic_access_zones (
             name, description, geom, created_by
           ) VALUES 
           ('Test Zone', 'Test Description', 
            ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
-           '00000000-0000-0000-0000-000000000000')
-        `);
+           $1)
+        `, [user.id]);
 
         // Act
         const response = await testRequest
@@ -152,7 +152,7 @@ describe('Geographic Routes', () => {
       let adminToken: string;
 
       beforeEach(async () => {
-        const { token } = await createTestUser(UserRole.ADMIN);
+        const { token, user } = await createTestUser(UserRole.ADMIN);
         adminToken = token;
 
         // Create test zone
@@ -162,9 +162,9 @@ describe('Geographic Routes', () => {
           ) VALUES (
             'Test Zone', 'Description',
             ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
-            '00000000-0000-0000-0000-000000000000'
+            $1
           ) RETURNING id
-        `);
+        `, [user.id]);
         zoneId = result.id;
       });
 
@@ -209,7 +209,7 @@ describe('Geographic Routes', () => {
     describe('DELETE /api/geographic/zones/:zoneId', () => {
       it('should delete zone and associated permissions', async () => {
         // Arrange
-        const { token } = await createTestUser(UserRole.ADMIN);
+        const { token, user: adminUser } = await createTestUser(UserRole.ADMIN);
         const { user } = await createTestUser(UserRole.USER);
         
         // Create test zone with permissions
@@ -219,13 +219,13 @@ describe('Geographic Routes', () => {
           ) VALUES (
             'Zone to Delete', 'Will be deleted',
             ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
-            '00000000-0000-0000-0000-000000000000'
+            $1
           ) RETURNING id
-        `);
+        `, [adminUser.id]);
 
         await db.none(
-          'INSERT INTO ng.zone_permissions (zone_id, user_id) VALUES ($1, $2)',
-          [zoneResult.id, user.id]
+          'INSERT INTO ng.zone_permissions (zone_id, user_id, created_by) VALUES ($1, $2, $3)',
+          [zoneResult.id, user.id, adminUser.id]
         );
 
         // Act

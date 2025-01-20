@@ -32,7 +32,7 @@ export interface ApiKeyResponse {
 export interface ApiKeyHistoryEntry {
   apiKey: string;
   createdAt: Date;
-  revokedAt?: Date;
+  revokedAt: string | null;
   isActive: boolean;
 }
 

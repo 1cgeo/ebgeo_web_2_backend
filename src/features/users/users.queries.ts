@@ -98,14 +98,30 @@ export const GET_USER_DETAILS = `
   )
   SELECT 
     u.*,
-    json_agg(DISTINCT ug.*) FILTER (WHERE ug.id IS NOT NULL) as groups,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'id', ug.id,
+          'name', ug.name,
+          'addedAt', ug.added_at,
+          'addedBy', ug.added_by
+        )
+      ) FILTER (WHERE ug.id IS NOT NULL),
+      '[]'
+    ) as groups,
     json_build_object(
       'count', COUNT(DISTINCT mp.id),
-      'items', json_agg(DISTINCT mp.*) FILTER (WHERE mp.id IS NOT NULL)
+      'items', COALESCE(
+        json_agg(DISTINCT mp.*) FILTER (WHERE mp.id IS NOT NULL),
+        '[]'
+      )
     ) as model_permissions,
     json_build_object(
       'count', COUNT(DISTINCT zp.id),
-      'items', json_agg(DISTINCT zp.*) FILTER (WHERE zp.id IS NOT NULL)
+      'items', COALESCE(
+        json_agg(DISTINCT zp.*) FILTER (WHERE zp.id IS NOT NULL),
+        '[]'
+      )
     ) as zone_permissions
   FROM ng.users u
   LEFT JOIN user_groups ug ON true

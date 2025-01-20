@@ -70,7 +70,7 @@ SELECT
   z.*,
   COUNT(DISTINCT zp.user_id) as user_count,
   COUNT(DISTINCT zgp.group_id) as group_count,
-  ROUND(ST_Area(z.geom::geography) / 1000000::numeric, 2) as area_km2
+  ROUND((ST_Area(z.geom::geography) / 1000000)::numeric, 2) as area_km2
 FROM ng.geographic_access_zones z
 LEFT JOIN ng.zone_permissions zp ON z.id = zp.zone_id
 LEFT JOIN ng.zone_group_permissions zgp ON z.id = zgp.zone_id
@@ -109,12 +109,12 @@ WHERE z.id = $1;
 export const CREATE_ZONE = `
 WITH new_zone AS (
   INSERT INTO ng.geographic_access_zones (name, description, geom, created_by)
-  VALUES ($1, $2, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326), $4)
+  VALUES ($1, $2, ST_SetSRID(ST_GeomFromGeoJSON($3), 4674), $4)
   RETURNING id, name, description, geom, created_at, created_by
 )
 SELECT 
   nz.*,
-  ROUND(ST_Area(nz.geom::geography) / 1000000::numeric, 2) as area_km2
+  ROUND((ST_Area(nz.geom::geography) / 1000000)::numeric, 2) as area_km2
 FROM new_zone nz;
 `;
 

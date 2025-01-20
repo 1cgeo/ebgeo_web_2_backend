@@ -22,31 +22,6 @@ import { validateRequest } from '../../common/middleware/validateRequest.js';
 
 const router = Router();
 
-// Rotas administrativas (requer ADMIN)
-router.get(
-  '/',
-  authorize([UserRole.ADMIN]),
-  validateRequest(listUsersValidation),
-  asyncHandler(listUsers),
-);
-
-router.get('/:id', authorize([UserRole.ADMIN]), asyncHandler(getUserDetails));
-
-router.post(
-  '/',
-  authorize([UserRole.ADMIN]),
-  validateRequest(createUserValidation),
-  asyncHandler(createUser),
-);
-
-router.put(
-  '/:id',
-  authorize([UserRole.ADMIN]),
-  validateRequest(updateUserValidation),
-  asyncHandler(updateUser),
-);
-
-// Rotas de perfil (qualquer usuário autenticado)
 router.get(
   '/me',
   authorize([UserRole.ADMIN, UserRole.USER]),
@@ -58,6 +33,29 @@ router.put(
   authorize([UserRole.ADMIN, UserRole.USER]),
   validateRequest(updateProfileValidation),
   asyncHandler(updateProfile),
+);
+
+router.get(
+  '/',
+  authorize([UserRole.ADMIN]),
+  validateRequest(listUsersValidation),
+  asyncHandler(listUsers),
+);
+
+router.post(
+  '/',
+  authorize([UserRole.ADMIN]),
+  validateRequest(createUserValidation),
+  asyncHandler(createUser),
+);
+
+router.get('/:id', authorize([UserRole.ADMIN]), asyncHandler(getUserDetails));
+
+router.put(
+  '/:id',
+  authorize([UserRole.ADMIN]),
+  validateRequest(updateUserValidation),
+  asyncHandler(updateUser),
 );
 
 // Rota de alteração de senha (admin ou próprio usuário)

@@ -20,7 +20,7 @@ user_model_permissions AS (
   ) perms
 ),
 click_point AS (
-  SELECT ST_SetSRID(ST_MakePoint($1, $2), 4326) AS geom
+  SELECT ST_SetSRID(ST_MakePoint($1, $2), 4674) AS geom
 ),
 buffered_point AS (
   SELECT ST_Buffer(geom::geography, 3)::geometry AS geom FROM click_point

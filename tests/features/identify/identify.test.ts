@@ -48,7 +48,7 @@ describe('Identify Routes', () => {
           ${lon + 0.001} ${lat + 0.001},
           ${lon - 0.001} ${lat + 0.001},
           ${lon - 0.001} ${lat - 0.001}
-        )')), 4326),
+        )')), 4674),
         $7
       ) RETURNING *`,
       [
@@ -75,8 +75,8 @@ describe('Identify Routes', () => {
       const response = await testRequest.get('/api/identify/feicoes');
 
       // Assert
-      expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/parâmetros inválidos/i);
+      expect(response.status).toBe(422);
+      expect(response.body.message).toMatch(/Dados inválidos/i);
     });
 
     it('should validate coordinate ranges', async () => {
@@ -90,8 +90,8 @@ describe('Identify Routes', () => {
         });
 
       // Assert
-      expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/parâmetros inválidos/i);
+      expect(response.status).toBe(422);
+      expect(response.body.message).toMatch(/Dados inválidos/i);
     });
 
     it('should find feature in public model without authentication', async () => {

@@ -2,6 +2,7 @@ import { db } from '../../../src/common/config/database.js';
 import { createTestUser } from '../../helpers/auth.helper.js';
 import { testRequest } from '../../helpers/request.helper.js';
 import { UserRole } from '../../../src/features/auth/auth.types.js';
+import type { User } from '../../../src/features/users/users.types.js';
 
 describe('Admin Routes', () => {
   describe('GET /api/admin/health', () => {
@@ -156,26 +157,35 @@ describe('Admin Routes', () => {
   });
 
   describe('GET /api/admin/audit', () => {
+    let adminUser: User;
+
     beforeEach(async () => {
-      // Create some audit entries for testing
-      const admin = await createTestUser(UserRole.ADMIN);
-      await db.none(
-        `SELECT ng.create_audit_log($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [
-          'USER_CREATE',
-          admin.user.id,
-          'USER',
-          admin.user.id,
-          'test_user',
-          { test: true },
-          '127.0.0.1',
-          'test-agent'
-        ]
-      );
+      // Create test admin user
+      const adminData = await createTestUser(UserRole.ADMIN);
+      adminUser = adminData.user;
+
+      // Insert test audit entries directly using SQL
+      await db.tx(async t => {
+        await t.none(`
+          INSERT INTO ng.audit_trail 
+          (action, actor_id, target_type, target_id, target_name, details, ip, user_agent)
+          VALUES 
+          ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            'USER_CREATE',
+            adminUser.id,
+            'USER',
+            adminUser.id,
+            'test_user',
+            { test: true },
+            '127.0.0.1',
+            'test-agent'
+          ]
+        );
+      });
     });
 
     it('should return filtered audit entries with valid parameters', async () => {
-      // Arrange
       const { token } = await createTestUser(UserRole.ADMIN);
       const queryParams = {
         startDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -185,13 +195,11 @@ describe('Admin Routes', () => {
         limit: 10
       };
 
-      // Act
       const response = await testRequest
         .get('/api/admin/audit')
         .query(queryParams)
         .set('Authorization', `Bearer ${token}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('entries');
       expect(response.body).toHaveProperty('total');
@@ -202,7 +210,6 @@ describe('Admin Routes', () => {
     });
 
     it('should validate audit query parameters', async () => {
-      // Arrange
       const { token } = await createTestUser(UserRole.ADMIN);
       const invalidParams = {
         startDate: 'invalid-date',
@@ -212,19 +219,16 @@ describe('Admin Routes', () => {
         limit: 1000
       };
 
-      // Act
       const response = await testRequest
         .get('/api/admin/audit')
         .query(invalidParams)
         .set('Authorization', `Bearer ${token}`);
 
-      // Assert
       expect(response.status).toBe(422);
       expect(response.body).toHaveProperty('details');
     });
 
     it('should handle search in audit details', async () => {
-      // Arrange
       const { token } = await createTestUser(UserRole.ADMIN);
       const queryParams = {
         search: 'test',
@@ -232,16 +236,19 @@ describe('Admin Routes', () => {
         limit: 10
       };
 
-      // Act
       const response = await testRequest
         .get('/api/admin/audit')
         .query(queryParams)
         .set('Authorization', `Bearer ${token}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('entries');
       expect(Array.isArray(response.body.entries)).toBe(true);
+    });
+
+    afterEach(async () => {
+      // Clean up test audit entries
+      await db.none('DELETE FROM ng.audit_trail WHERE actor_id = $1', [adminUser.id]);
     });
   });
 });

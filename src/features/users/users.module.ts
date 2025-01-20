@@ -102,6 +102,13 @@ export async function createUser(
         [username],
       );
       if (existingUser) {
+        logger.logAccess('Username já está em uso', {
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'create_user',
+            attemptedUsername: username,
+          },
+        });
         throw ApiError.conflict('Username já está em uso');
       }
 
@@ -111,6 +118,13 @@ export async function createUser(
         [email],
       );
       if (existingEmail) {
+        logger.logAccess('Email já está em uso', {
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'create_user',
+            attemptedemail: email,
+          },
+        });
         throw ApiError.conflict('Email já está em uso');
       }
 
@@ -163,14 +177,19 @@ export async function createUser(
 
     return res.status(201).json(result);
   } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.ADMIN,
-      userId: req.user?.userId,
-      additionalInfo: {
-        operation: 'create_user',
-        attemptedUsername: username,
-      },
-    });
+    if (!(error instanceof ApiError)) {
+      logger.logError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          category: LogCategory.ADMIN,
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'create_user',
+            attemptedUsername: username,
+          },
+        },
+      );
+    }
     throw error;
   }
 }
@@ -304,6 +323,13 @@ export async function updatePassword(
       // Se não for admin, verificar senha atual
       if (!isAdmin) {
         if (!currentPassword) {
+          logger.logSecurity('Senha atual é obrigatória', {
+            userId: req.user?.userId,
+            additionalInfo: {
+              operation: 'update_password',
+              targetUserId: id,
+            },
+          });
           throw ApiError.badRequest('Senha atual é obrigatória');
         }
 
@@ -312,6 +338,13 @@ export async function updatePassword(
           user.password,
         );
         if (!isValidPassword) {
+          logger.logSecurity('Senha atual incorreta', {
+            userId: req.user?.userId,
+            additionalInfo: {
+              operation: 'update_password',
+              targetUserId: id,
+            },
+          });
           throw ApiError.badRequest('Senha atual incorreta');
         }
       }
@@ -345,14 +378,19 @@ export async function updatePassword(
 
     return res.json({ message: 'Senha atualizada com sucesso' });
   } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.SECURITY,
-      userId: req.user?.userId,
-      additionalInfo: {
-        operation: 'update_password',
-        targetUserId: id,
-      },
-    });
+    if (!(error instanceof ApiError)) {
+      logger.logError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          category: LogCategory.SECURITY,
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'update_password',
+            targetUserId: id,
+          },
+        },
+      );
+    }
     throw error;
   }
 }
@@ -365,11 +403,27 @@ export async function getUserProfile(req: Request, res: Response) {
   try {
     const profile = await db.one(queries.GET_USER_DETAILS, [req.user.userId]);
 
+    // Garantir que os campos de permissões e grupos estejam estruturados corretamente
+    const formattedProfile = {
+      ...profile,
+      groups: profile.groups || [],
+      permissions: {
+        models: {
+          count: profile.model_permissions?.count || 0,
+          items: profile.model_permissions?.items || [],
+        },
+        zones: {
+          count: profile.zone_permissions?.count || 0,
+          items: profile.zone_permissions?.items || [],
+        },
+      },
+    };
+
     logger.logAccess('Profile retrieved', {
       userId: req.user.userId,
     });
 
-    return res.json(profile);
+    return res.json(formattedProfile);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
@@ -392,12 +446,15 @@ export async function updateProfile(
   const { email } = req.body;
 
   try {
-    const result = await db.tx(async t => {
-      if (!req.user?.userId) {
+    await db.tx(async t => {
+      if (!(req.user && req.user.userId)) {
         throw ApiError.unauthorized('Usuário não autenticado');
       }
-      // Verificar se email já existe
-      if (email) {
+      const user = await db.one('SELECT * FROM ng.users WHERE id = $1', [
+        userId,
+      ]);
+
+      if (email && email !== user.email) {
         const existingEmail = await t.oneOrNone(
           'SELECT id FROM ng.users WHERE email = $1 AND id != $2',
           [email, userId],
@@ -418,7 +475,7 @@ export async function updateProfile(
             email:
               email !== undefined
                 ? {
-                    old: result.email,
+                    old: user.email,
                     new: email,
                   }
                 : undefined,
@@ -427,16 +484,15 @@ export async function updateProfile(
         },
       });
 
-      // Atualizar perfil
-      const updatedUser = await t.one(queries.UPDATE_USER, [
+      await t.one(queries.UPDATE_USER, [
         userId,
         email,
         null, // role não pode ser alterado
         null, // isActive não pode ser alterado
       ]);
-
-      return updatedUser;
     });
+
+    const updatedUser = await db.one(queries.GET_USER_DETAILS, [userId]);
 
     logger.logAccess('Profile updated', {
       userId: req.user.userId,
@@ -445,7 +501,7 @@ export async function updateProfile(
       },
     });
 
-    return res.json(result);
+    return res.json(updatedUser);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,

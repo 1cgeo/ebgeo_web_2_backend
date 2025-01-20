@@ -276,6 +276,8 @@ describe('Auth Routes', () => {
         .post('/api/auth/api-key/regenerate')
         .set('Authorization', `Bearer ${token}`);
       
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       await testRequest
         .post('/api/auth/api-key/regenerate')
         .set('Authorization', `Bearer ${token}`);
@@ -286,11 +288,18 @@ describe('Auth Routes', () => {
         .set('Authorization', `Bearer ${token}`);
 
       // Assert
+      expect(historyResponse.status).toBe(200);
       expect(historyResponse.body.history).toHaveLength(2);
-      expect(historyResponse.body.history[0].apiKey).not.toBe(originalApiKey);
-      expect(historyResponse.body.history[1].apiKey).not.toBe(originalApiKey);
-      expect((new Date(historyResponse.body.history[0].createdAt)).getTime())
-        .toBeGreaterThan((new Date(historyResponse.body.history[1].createdAt)).getTime());
+
+      const firstEntry = historyResponse.body.history[0];
+      const secondEntry = historyResponse.body.history[1];
+      expect(firstEntry.apiKey).not.toBe(originalApiKey);
+      expect(secondEntry.apiKey).not.toBe(originalApiKey);
+
+      const firstDate = new Date(firstEntry.created_at).getTime();
+      const secondDate = new Date(secondEntry.created_at).getTime();
+      expect(firstDate).toBeGreaterThan(secondDate);
+
     });
 
     it('should update user record with new API key', async () => {
@@ -335,6 +344,9 @@ describe('Auth Routes', () => {
       await testRequest
         .post('/api/auth/api-key/regenerate')
         .set('Authorization', `Bearer ${token}`);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       await testRequest
         .post('/api/auth/api-key/regenerate')
         .set('Authorization', `Bearer ${token}`);
@@ -347,9 +359,17 @@ describe('Auth Routes', () => {
       // Assert
       expect(response.status).toBe(200);
       expect(response.body.history).toHaveLength(2);
-      expect(response.body.history[0].isActive).toBe(false);
-      expect(response.body.history[1].isActive).toBe(false);
-      expect(response.body.history[0].revokedAt).toBeTruthy();
+      expect(response.body.history[0].is_active).toBe(false);
+      expect(response.body.history[1].is_active).toBe(false);
+
+      // Verify revocation timestamps
+      expect(response.body.history[0].revoked_at).toBeTruthy();
+      expect(response.body.history[1].revoked_at).toBeTruthy();
+
+      // Verify that the entries are properly ordered
+      const firstDate = new Date(response.body.history[0].created_at).getTime();
+      const secondDate = new Date(response.body.history[1].created_at).getTime();
+      expect(firstDate).toBeGreaterThan(secondDate);
     });
 
     it('should return 401 with invalid token', async () => {

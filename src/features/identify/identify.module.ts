@@ -50,6 +50,11 @@ export async function findNearestFeature(req: Request, res: Response) {
       });
     }
 
+    result.z_distance = Number(result.z_distance);
+    result.xy_distance = Number(result.xy_distance);
+    result.altitude_base = Number(result.altitude_base);
+    result.altitude_topo = Number(result.altitude_topo);
+
     return res.json(result);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
