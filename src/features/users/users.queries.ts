@@ -138,10 +138,11 @@ export const CREATE_USER = `
     password, 
     role, 
     is_active,
+    created_by,
     created_at, 
     updated_at
   ) VALUES (
-    $1, $2, $3, $4, true, 
+    $1, $2, $3, $4, true, $5,
     CURRENT_TIMESTAMP, 
     CURRENT_TIMESTAMP
   ) RETURNING id;

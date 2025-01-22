@@ -81,17 +81,21 @@ export async function createGroup(
       const fullGroup = await t.one(queries.GET_GROUP, [group.id]);
 
       // Adicionar auditoria
-      await createAudit(req, {
-        action: 'GROUP_CREATE',
-        actorId: req.user.userId,
-        targetType: 'GROUP',
-        targetId: group.id,
-        targetName: name,
-        details: {
-          description,
-          initial_members: userIds?.length || 0,
+      await createAudit(
+        req,
+        {
+          action: 'GROUP_CREATE',
+          actorId: req.user.userId,
+          targetType: 'GROUP',
+          targetId: group.id,
+          targetName: name,
+          details: {
+            description,
+            initial_members: userIds?.length || 0,
+          },
         },
-      });
+        t,
+      );
 
       return fullGroup;
     });
@@ -157,37 +161,41 @@ export async function updateGroup(
       const updatedGroup = await t.one(queries.GET_GROUP, [id]);
 
       // Adicionar auditoria
-      await createAudit(req, {
-        action: 'GROUP_UPDATE',
-        actorId: req.user.userId,
-        targetType: 'GROUP',
-        targetId: id,
-        targetName: currentGroup.name,
-        details: {
-          changes: {
-            name:
-              name !== undefined
-                ? {
-                    old: currentGroup.name,
-                    new: name,
-                  }
-                : undefined,
-            description:
-              description !== undefined
-                ? {
-                    old: currentGroup.description,
-                    new: description,
-                  }
-                : undefined,
-            members:
-              userIds !== undefined
-                ? {
-                    count: userIds.length,
-                  }
-                : undefined,
+      await createAudit(
+        req,
+        {
+          action: 'GROUP_UPDATE',
+          actorId: req.user.userId,
+          targetType: 'GROUP',
+          targetId: id,
+          targetName: currentGroup.name,
+          details: {
+            changes: {
+              name:
+                name !== undefined
+                  ? {
+                      old: currentGroup.name,
+                      new: name,
+                    }
+                  : undefined,
+              description:
+                description !== undefined
+                  ? {
+                      old: currentGroup.description,
+                      new: description,
+                    }
+                  : undefined,
+              members:
+                userIds !== undefined
+                  ? {
+                      count: userIds.length,
+                    }
+                  : undefined,
+            },
           },
         },
-      });
+        t,
+      );
 
       return updatedGroup;
     });
@@ -241,21 +249,25 @@ export async function deleteGroup(req: Request, res: Response) {
       }
 
       // Adicionar auditoria
-      await createAudit(req, {
-        action: 'GROUP_DELETE',
-        actorId: req.user.userId,
-        targetType: 'GROUP',
-        targetId: id,
-        targetName: group.name,
-        details: {
-          deleted_group: {
-            name: group.name,
-            description: group.description,
-            member_count: group.member_count,
-            created_at: group.created_at,
+      await createAudit(
+        req,
+        {
+          action: 'GROUP_DELETE',
+          actorId: req.user.userId,
+          targetType: 'GROUP',
+          targetId: id,
+          targetName: group.name,
+          details: {
+            deleted_group: {
+              name: group.name,
+              description: group.description,
+              member_count: group.member_count,
+              created_at: group.created_at,
+            },
           },
         },
-      });
+        t,
+      );
 
       // Remover todas as permissões e relacionamentos
       await t.batch([

@@ -152,6 +152,28 @@ export async function queryLogs(req: Request, res: Response) {
 
   try {
     const logDir = process.env.LOG_DIR || 'logs';
+
+    // Try to access logs directory
+    try {
+      await fs.access(logDir);
+    } catch (error) {
+      // If directory doesn't exist or isn't accessible, return empty results
+      logger.logAccess('No logs directory found', {
+        category: LogCategory.SYSTEM,
+        additionalInfo: {
+          logDir,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+
+      return res.json({
+        logs: [],
+        total: 0,
+        page: Number(page),
+        limit: Number(limit),
+      });
+    }
+
     const logs = await processLogFiles(logDir, {
       startDate,
       endDate,
@@ -364,31 +386,57 @@ async function processLogFiles(
   logDir: string,
   filters: Omit<LogQueryParams, 'page' | 'limit'>,
 ): Promise<LogEntry[]> {
-  const logs: LogEntry[] = [];
-  const files = await fs.readdir(logDir);
+  try {
+    const files = await fs.readdir(logDir);
+    const logs: LogEntry[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith('.log')) continue;
+    for (const file of files) {
+      if (!file.endsWith('.log')) continue;
 
-    const filePath = path.join(logDir, file);
-    const content = await fs.readFile(filePath, 'utf-8');
-    const lines = content.split('\n').filter(Boolean);
-
-    for (const line of lines) {
+      const filePath = path.join(logDir, file);
       try {
-        const log = JSON.parse(line);
-        if (matchesLogFilters(log, filters)) {
-          logs.push(formatLogEntry(log));
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.split('\n').filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const log = JSON.parse(line);
+            if (matchesLogFilters(log, filters)) {
+              logs.push(formatLogEntry(log));
+            }
+          } catch {
+            continue;
+          }
         }
-      } catch {
-        continue;
+      } catch (error) {
+        logger.logError(
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            category: LogCategory.SYSTEM,
+            additionalInfo: {
+              operation: 'read_log_file',
+              file: filePath,
+            },
+          },
+        );
+        continue; // Skip problematic files but continue processing others
       }
     }
-  }
 
-  return logs.sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-  );
+    return logs.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
+  } catch (error) {
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.SYSTEM,
+      additionalInfo: {
+        operation: 'process_log_files',
+        logDir,
+      },
+    });
+    throw error;
+  }
 }
 
 function matchesLogFilters(

@@ -1,41 +1,36 @@
 export const COUNT_CATALOG = `
   WITH user_role AS (
-  SELECT EXISTS (
-    SELECT 1 
-    FROM ng.users u 
-    WHERE u.id = $2 AND u.role = 'admin'
-  ) as is_admin
-),
-allowed_models AS (
-  SELECT c.id
+    SELECT EXISTS (
+      SELECT 1 
+      FROM ng.users u 
+      WHERE u.id = $2 AND u.role = 'admin'
+    ) as is_admin
+  ),
+  allowed_models AS (
+    SELECT c.id
+    FROM ng.catalogo_3d c
+    LEFT JOIN user_role ur ON true
+    LEFT JOIN (
+      SELECT DISTINCT model_id
+      FROM (
+        SELECT model_id FROM ng.model_permissions WHERE user_id = $2
+        UNION
+        SELECT mgp.model_id
+        FROM ng.model_group_permissions mgp
+        JOIN ng.user_groups ug ON mgp.group_id = ug.group_id
+        WHERE ug.user_id = $2
+      ) all_permissions
+    ) user_perms ON user_perms.model_id = c.id
+    WHERE 
+      c.access_level = 'public'
+      OR ($2 IS NOT NULL AND (
+        ur.is_admin OR user_perms.model_id IS NOT NULL
+      ))
+  )
+  SELECT COUNT(*)::integer
   FROM ng.catalogo_3d c
-  CROSS JOIN user_role ur
-  LEFT JOIN (
-    -- União de permissões diretas e via grupo
-    SELECT DISTINCT model_id
-    FROM (
-      -- Permissões diretas
-      SELECT model_id 
-      FROM ng.model_permissions 
-      WHERE user_id = $2
-      UNION
-      -- Permissões via grupo
-      SELECT mgp.model_id
-      FROM ng.model_group_permissions mgp
-      JOIN ng.user_groups ug ON mgp.group_id = ug.group_id
-      WHERE ug.user_id = $2
-    ) all_permissions
-  ) user_perms ON user_perms.model_id = c.id
-  WHERE 
-    c.access_level = 'public'
-    OR ($2::UUID IS NOT NULL AND (
-      ur.is_admin OR user_perms.model_id IS NOT NULL
-    ))
-)
-SELECT COUNT(*)
-FROM ng.catalogo_3d c
-JOIN allowed_models am ON c.id = am.id
-WHERE ($1::text IS NULL OR search_vector @@ plainto_tsquery('portuguese', $1));
+  JOIN allowed_models am ON c.id = am.id
+  WHERE ($1::text IS NULL OR search_vector @@ plainto_tsquery('portuguese', $1));
 `;
 
 export const SEARCH_CATALOG = `
@@ -119,18 +114,30 @@ export const LIST_MODEL_PERMISSIONS = `
     c.id as model_id,
     c.name as model_name,
     c.access_level,
-    ARRAY(
-      SELECT json_build_object('id', u.id, 'username', u.username)
+    COALESCE(ARRAY(
+      SELECT json_build_object(
+          'id', u.id, 
+          'username', u.username,
+          'created_at', mp.created_at,
+          'created_by', u_created.username
+      )
       FROM ng.model_permissions mp
       JOIN ng.users u ON mp.user_id = u.id
+      JOIN ng.users u_created ON mp.created_by = u_created.id
       WHERE mp.model_id = c.id
-    ) as user_permissions,
-    ARRAY(
-      SELECT json_build_object('id', g.id, 'name', g.name)
+    ), '{}') as user_permissions,
+    COALESCE(ARRAY(
+      SELECT json_build_object(
+          'id', g.id, 
+          'name', g.name,
+          'created_at', mgp.created_at,
+          'created_by', u.username
+      )
       FROM ng.model_group_permissions mgp
+      JOIN ng.users u ON mgp.created_by = u.id
       JOIN ng.groups g ON mgp.group_id = g.id
       WHERE mgp.model_id = c.id
-    ) as group_permissions
+    ), '{}') as group_permissions
   FROM ng.catalogo_3d c
   WHERE c.id = $1;
 `;

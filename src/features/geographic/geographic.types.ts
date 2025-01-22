@@ -20,8 +20,6 @@ export interface GeographicZone {
   geom: any;
   created_at: Date;
   created_by: string;
-  updated_at?: Date;
-  updated_by?: string;
 }
 
 export interface ZoneWithStats extends GeographicZone {

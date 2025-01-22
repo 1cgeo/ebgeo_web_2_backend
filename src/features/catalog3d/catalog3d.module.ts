@@ -10,19 +10,18 @@ export async function searchCatalog3D(req: Request, res: Response) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     throw ApiError.unprocessableEntity('Parâmetros de busca inválidos', {
-      field: 'searchParams',
-      reason: 'Validação falhou',
-      value: errors.array(),
+      errors: errors.array(),
     });
   }
 
   const { q, page = 1, nr_records = 10 } = req.query;
   const offset = (Number(page) - 1) * Number(nr_records);
+  const userId = req.user?.userId || null;
 
   try {
     const [totalCount, data] = await Promise.all([
-      db.one<{ count: string }>(COUNT_CATALOG, [q]),
-      db.any<Catalog3D>(SEARCH_CATALOG, [q, nr_records, offset]),
+      db.one<{ count: string }>(COUNT_CATALOG, [q, userId]),
+      db.any<Catalog3D>(SEARCH_CATALOG, [q, nr_records, offset, userId]),
     ]);
 
     const result: SearchResult = {
@@ -31,18 +30,6 @@ export async function searchCatalog3D(req: Request, res: Response) {
       nr_records: Number(nr_records),
       data,
     };
-
-    logger.logAccess('Catalog3D search performed', {
-      requestId: req.id,
-      additionalInfo: {
-        query: q,
-        pagination: {
-          page,
-          nr_records,
-          resultsCount: data.length,
-        },
-      },
-    });
 
     return res.json(result);
   } catch (error) {

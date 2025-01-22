@@ -37,6 +37,8 @@ export interface ModelPermissionInfo {
   model_id: string;
   model_name: string;
   access_level: ModelAccessLevel;
+  created_at: Date;
+  created_by: string;
   user_permissions: Array<{
     id: string;
     username: string;

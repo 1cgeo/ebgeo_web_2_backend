@@ -31,8 +31,6 @@ export const geographicSchemas: Record<string, OpenAPISchema> = {
       group_count: { type: 'integer' },
       created_at: { type: 'string', format: 'date-time' },
       created_by: { type: 'string', format: 'uuid' },
-      updated_at: { type: 'string', format: 'date-time', nullable: true },
-      updated_by: { type: 'string', format: 'uuid', nullable: true },
     },
   },
 

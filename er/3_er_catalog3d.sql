@@ -52,6 +52,8 @@ FOR EACH ROW EXECUTE FUNCTION ng.catalogo_3d_search_vector_update();
 CREATE TABLE IF NOT EXISTS ng.model_permissions (
   model_id UUID REFERENCES ng.catalogo_3d(id) ON DELETE CASCADE,
   user_id UUID REFERENCES ng.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_by UUID REFERENCES ng.users(id),
   PRIMARY KEY (model_id, user_id)
 );
 
@@ -61,6 +63,8 @@ CREATE INDEX idx_model_permissions ON ng.model_permissions(model_id, user_id);
 CREATE TABLE IF NOT EXISTS ng.model_group_permissions (
   model_id UUID REFERENCES ng.catalogo_3d(id) ON DELETE CASCADE,
   group_id UUID REFERENCES ng.groups(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_by UUID REFERENCES ng.users(id),
   PRIMARY KEY (model_id, group_id)
 );
 

@@ -31,9 +31,7 @@ CREATE TABLE ng.geographic_access_zones (
     description TEXT,
     geom GEOMETRY(POLYGON, 4674) NOT NULL,
     created_by UUID REFERENCES ng.users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_by UUID REFERENCES ng.users(id),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_geographic_access_zones_geom ON ng.geographic_access_zones USING GIST (geom);

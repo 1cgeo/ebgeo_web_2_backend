@@ -35,10 +35,14 @@ export async function listModelPermissions(req: Request, res: Response) {
   const { modelId } = req.params;
 
   try {
-    const permissions = await db.one<ModelPermissionInfo>(
+    const model = await db.oneOrNone<ModelPermissionInfo>(
       LIST_MODEL_PERMISSIONS,
       [modelId],
     );
+
+    if (!model) {
+      throw ApiError.notFound('Modelo não encontrado');
+    }
 
     logger.logAccess('Listed model permissions', {
       userId: req.user.userId,
@@ -48,8 +52,12 @@ export async function listModelPermissions(req: Request, res: Response) {
       },
     });
 
-    return res.json(permissions);
+    return res.json(model);
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
       endpoint: '/catalog3d/permissions',
@@ -66,6 +74,7 @@ async function updateUserPermissions(
   t: ITask<any>,
   modelId: string,
   userIds: string[],
+  createdBy: string,
 ) {
   // Deletar permissões existentes
   await t.none('DELETE FROM ng.model_permissions WHERE model_id = $1', [
@@ -75,9 +84,9 @@ async function updateUserPermissions(
   // Se houver novos IDs, inserir um por um de forma segura
   if (userIds.length > 0) {
     await t.none(
-      `INSERT INTO ng.model_permissions (model_id, user_id)
-       SELECT $1, unnest($2::uuid[])`,
-      [modelId, userIds],
+      `INSERT INTO ng.model_permissions (model_id, user_id, created_by)
+        SELECT $1, unnest($2::uuid[]), $3`,
+      [modelId, userIds, createdBy],
     );
   }
 }
@@ -86,6 +95,7 @@ async function updateGroupPermissions(
   t: ITask<any>,
   modelId: string,
   groupIds: string[],
+  createdBy: string,
 ) {
   // Deletar permissões existentes
   await t.none('DELETE FROM ng.model_group_permissions WHERE model_id = $1', [
@@ -95,15 +105,16 @@ async function updateGroupPermissions(
   // Se houver novos IDs, inserir um por um de forma segura
   if (groupIds.length > 0) {
     await t.none(
-      `INSERT INTO ng.model_group_permissions (model_id, group_id)
-       SELECT $1, unnest($2::uuid[])`,
-      [modelId, groupIds],
+      `INSERT INTO ng.model_group_permissions (model_id, group_id, created_by)
+       SELECT $1, unnest($2::uuid[]), $3`,
+      [modelId, groupIds, createdBy],
     );
   }
 }
 
 export async function updateModelPermissions(req: Request, res: Response) {
-  if (!req.user || req.user.role !== UserRole.ADMIN) {
+  const user = req.user;
+  if (!user || user.role !== UserRole.ADMIN) {
     throw ApiError.forbidden(
       'Apenas administradores podem atualizar permissões',
     );
@@ -127,18 +138,18 @@ export async function updateModelPermissions(req: Request, res: Response) {
 
       // Atualizar permissões de usuários se fornecido
       if (userIds) {
-        await updateUserPermissions(t, modelId, userIds);
+        await updateUserPermissions(t, modelId, userIds, user.userId);
       }
 
       // Atualizar permissões de grupos se fornecido
       if (groupIds) {
-        await updateGroupPermissions(t, modelId, groupIds);
+        await updateGroupPermissions(t, modelId, groupIds, user.userId);
       }
     });
 
     await createAudit(req, {
       action: 'MODEL_PERMISSION_CHANGE',
-      actorId: req.user.userId,
+      actorId: user.userId,
       targetType: 'MODEL',
       targetId: modelId,
       targetName: currentModel.model_name,
@@ -157,7 +168,7 @@ export async function updateModelPermissions(req: Request, res: Response) {
     });
 
     logger.logSecurity('Model permissions updated', {
-      userId: req.user.userId,
+      userId: user.userId,
       additionalInfo: {
         modelId,
         changes: { access_level, userIds, groupIds },
@@ -169,7 +180,7 @@ export async function updateModelPermissions(req: Request, res: Response) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
       endpoint: '/catalog3d/permissions',
-      userId: req.user.userId,
+      userId: user.userId,
       additionalInfo: {
         modelId,
         attemptedChanges: { access_level, userIds, groupIds },

@@ -16,6 +16,7 @@ CREATE TABLE ng.users (
     api_key_created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true,
     last_login TIMESTAMP WITH TIME ZONE,
+    created_by UUID REFERENCES ng.users(id),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_role CHECK (role IN ('admin', 'user'))
@@ -38,7 +39,7 @@ CREATE INDEX idx_users_api_key ON ng.users(api_key);
 CREATE TABLE ng.user_groups (
     user_id UUID REFERENCES ng.users(id) ON DELETE CASCADE,
     group_id UUID REFERENCES ng.groups(id) ON DELETE CASCADE,
-    added_by UUID NOT NULL REFERENCES ng.users(id),
+    added_by UUID REFERENCES ng.users(id),
     added_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, group_id)
 );

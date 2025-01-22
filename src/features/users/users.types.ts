@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   isActive: boolean;
   lastLogin?: Date;
+  createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }

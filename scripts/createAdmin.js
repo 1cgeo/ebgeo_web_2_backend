@@ -87,10 +87,10 @@ async function createAdmin() {
     await db.none(`
       INSERT INTO ng.users (
         username, email, password, role, api_key, is_active, 
-        created_at, updated_at
+        created_by, created_at, updated_at
       ) VALUES (
         $1, $2, $3, 'admin', $4, true,
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        null, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )`,
       [username, email, hashedPassword, apiKey]
     );

@@ -16,7 +16,7 @@ describe('Catalog3D Routes', () => {
       ) VALUES (
         $1, $2, $3, $4, $5, $6,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-        to_tsvector('portuguese', $2 || ' ' || $3)
+        to_tsvector('portuguese', $2 || ' ' || COALESCE($3, ''))
       ) RETURNING *`,
       [
         modelId,
@@ -31,10 +31,11 @@ describe('Catalog3D Routes', () => {
 
   describe('GET /api/catalog3d/catalogo3d', () => {
     beforeEach(async () => {
-      // Limpar tabelas antes de cada teste
-      await db.none('DELETE FROM ng.catalogo_3d');
-      await db.none('DELETE FROM ng.model_permissions');
-      await db.none('DELETE FROM ng.model_group_permissions');
+      await db.tx(async t => {
+        await t.none('DELETE FROM ng.model_permissions');
+        await t.none('DELETE FROM ng.model_group_permissions');
+        await t.none('DELETE FROM ng.catalogo_3d');
+      });
     });
 
     it('should return public models without authentication', async () => {
@@ -138,6 +139,14 @@ describe('Catalog3D Routes', () => {
   });
 
   describe('GET /api/catalog3d/permissions/:modelId', () => {
+    beforeEach(async () => {
+      await db.tx(async t => {
+        await t.none('DELETE FROM ng.model_permissions');
+        await t.none('DELETE FROM ng.model_group_permissions');
+        await t.none('DELETE FROM ng.catalogo_3d');
+      });
+    });
+
     it('should require authentication', async () => {
       // Act
       const response = await testRequest

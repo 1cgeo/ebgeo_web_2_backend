@@ -137,6 +137,7 @@ export async function createUser(
         email,
         hashedPassword,
         role,
+        req.user?.userId,
       ]);
 
       // Se houver grupos, adicionar usuário aos grupos
@@ -233,38 +234,42 @@ export async function updateUser(
         isActive,
       ]);
 
-      await createAudit(req, {
-        action: 'USER_UPDATE',
-        actorId: req.user.userId,
-        targetType: 'USER',
-        targetId: id,
-        targetName: user.username,
-        details: {
-          changes: {
-            email:
-              email !== undefined
-                ? {
-                    old: user.email,
-                    new: email,
-                  }
-                : undefined,
-            role:
-              role !== undefined
-                ? {
-                    old: user.role,
-                    new: role,
-                  }
-                : undefined,
-            isActive:
-              isActive !== undefined
-                ? {
-                    old: user.is_active,
-                    new: isActive,
-                  }
-                : undefined,
+      await createAudit(
+        req,
+        {
+          action: 'USER_UPDATE',
+          actorId: req.user.userId,
+          targetType: 'USER',
+          targetId: id,
+          targetName: user.username,
+          details: {
+            changes: {
+              email:
+                email !== undefined
+                  ? {
+                      old: user.email,
+                      new: email,
+                    }
+                  : undefined,
+              role:
+                role !== undefined
+                  ? {
+                      old: user.role,
+                      new: role,
+                    }
+                  : undefined,
+              isActive:
+                isActive !== undefined
+                  ? {
+                      old: user.is_active,
+                      new: isActive,
+                    }
+                  : undefined,
+            },
           },
         },
-      });
+        t,
+      );
 
       return updatedUser;
     });
@@ -349,17 +354,21 @@ export async function updatePassword(
         }
       }
 
-      await createAudit(req, {
-        action: 'USER_UPDATE',
-        actorId: req.user.userId,
-        targetType: 'USER',
-        targetId: id,
-        targetName: user.username,
-        details: {
-          passwordChanged: true,
-          changedBy: isAdmin ? 'admin' : 'self',
+      await createAudit(
+        req,
+        {
+          action: 'USER_UPDATE',
+          actorId: req.user.userId,
+          targetType: 'USER',
+          targetId: id,
+          targetName: user.username,
+          details: {
+            passwordChanged: true,
+            changedBy: isAdmin ? 'admin' : 'self',
+          },
         },
-      });
+        t,
+      );
 
       // Hash da nova senha
       const hashedPassword = await bcrypt.hash(addPepper(newPassword), 10);
@@ -464,25 +473,29 @@ export async function updateProfile(
         }
       }
 
-      await createAudit(req, {
-        action: 'USER_UPDATE',
-        actorId: req.user.userId,
-        targetType: 'USER',
-        targetId: userId,
-        targetName: req.user.username,
-        details: {
-          changes: {
-            email:
-              email !== undefined
-                ? {
-                    old: user.email,
-                    new: email,
-                  }
-                : undefined,
+      await createAudit(
+        req,
+        {
+          action: 'USER_UPDATE',
+          actorId: req.user.userId,
+          targetType: 'USER',
+          targetId: userId,
+          targetName: req.user.username,
+          details: {
+            changes: {
+              email:
+                email !== undefined
+                  ? {
+                      old: user.email,
+                      new: email,
+                    }
+                  : undefined,
+            },
+            changedBy: 'self',
           },
-          changedBy: 'self',
         },
-      });
+        t,
+      );
 
       await t.one(queries.UPDATE_USER, [
         userId,
