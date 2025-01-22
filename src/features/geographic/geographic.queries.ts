@@ -150,5 +150,5 @@ WITH deleted_permissions AS (
 deleted_group_permissions AS (
   DELETE FROM ng.zone_group_permissions WHERE zone_id = $1
 )
-DELETE FROM ng.geographic_access_zones WHERE id = $1 RETURNING id;
+DELETE FROM ng.geographic_access_zones WHERE id = $1;
 `;

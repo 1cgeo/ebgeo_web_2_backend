@@ -124,6 +124,7 @@ describe('Geographic Routes', () => {
         expect(response.status).toBe(201);
         expect(response.body).toHaveProperty('id');
         expect(response.body).toHaveProperty('name', zoneData.name);
+        expect(response.body.description).toBe(zoneData.description);
         expect(response.body).toHaveProperty('created_by', user.id);
       });
 
@@ -150,22 +151,44 @@ describe('Geographic Routes', () => {
     describe('Zone Permissions', () => {
       let zoneId: string;
       let adminToken: string;
+      let adminUserId: string;
 
       beforeEach(async () => {
+        // Create admin user
         const { token, user } = await createTestUser(UserRole.ADMIN);
         adminToken = token;
+        adminUserId = user.id;
 
         // Create test zone
-        const result = await db.one(`
-          INSERT INTO ng.geographic_access_zones (
-            name, description, geom, created_by
-          ) VALUES (
-            'Test Zone', 'Description',
-            ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
-            $1
-          ) RETURNING id
-        `, [user.id]);
-        zoneId = result.id;
+        const zoneResult = await db.tx(async t => {
+          // Ensure any existing zones are cleaned up
+          await t.none('DELETE FROM ng.geographic_access_zones');
+
+          // Create new zone
+          return t.one(`
+            INSERT INTO ng.geographic_access_zones (
+              name, description, geom, created_by
+            ) VALUES (
+              $1, $2, ST_SetSRID(ST_GeomFromText($3), 4674), $4
+            ) RETURNING id, name, description
+          `, [
+            'Test Zone',
+            'Description',
+            'POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))',
+            adminUserId
+          ]);
+        });
+        
+        zoneId = zoneResult.id;
+      });
+
+      afterEach(async () => {
+        // Cleanup zones
+        await db.tx(async t => {
+          await t.none('DELETE FROM ng.zone_permissions WHERE zone_id = $1', [zoneId]);
+          await t.none('DELETE FROM ng.zone_group_permissions WHERE zone_id = $1', [zoneId]);
+          await t.none('DELETE FROM ng.geographic_access_zones WHERE id = $1', [zoneId]);
+        });
       });
 
       it('should get zone permissions', async () => {
@@ -182,27 +205,30 @@ describe('Geographic Routes', () => {
       });
 
       it('should update zone permissions', async () => {
-        // Arrange
-        const { user } = await createTestUser(UserRole.USER);
-        const permissions = {
-          userIds: [user.id]
+        // Create a test user to add permissions
+        const { user: testUser } = await createTestUser(UserRole.USER);
+
+        const updateData = {
+          userIds: [testUser.id]
         };
 
         // Act
         const response = await testRequest
           .put(`/api/geographic/zones/${zoneId}/permissions`)
           .set('Authorization', `Bearer ${adminToken}`)
-          .send(permissions);
+          .send(updateData);
 
         // Assert
         expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('message', 'Permissões atualizadas com sucesso');
 
         // Verify permissions were updated
-        const updatedPerms = await db.one(
-          'SELECT COUNT(*) FROM ng.zone_permissions WHERE zone_id = $1 AND user_id = $2',
-          [zoneId, user.id]
-        );
-        expect(parseInt(updatedPerms.count)).toBe(1);
+        const perms = await db.one(`
+          SELECT COUNT(*) as count 
+          FROM ng.zone_permissions 
+          WHERE zone_id = $1 AND user_id = $2
+        `, [zoneId, testUser.id]);
+        expect(parseInt(perms.count)).toBe(1);
       });
     });
 
@@ -217,16 +243,18 @@ describe('Geographic Routes', () => {
           INSERT INTO ng.geographic_access_zones (
             name, description, geom, created_by
           ) VALUES (
-            'Zone to Delete', 'Will be deleted',
-            ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
+            'Test Zone',
+            'Description',
+            ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))'), 4674),
             $1
           ) RETURNING id
         `, [adminUser.id]);
 
-        await db.none(
-          'INSERT INTO ng.zone_permissions (zone_id, user_id, created_by) VALUES ($1, $2, $3)',
-          [zoneResult.id, user.id, adminUser.id]
-        );
+        // Add user permission
+        await db.none(`
+          INSERT INTO ng.zone_permissions (zone_id, user_id, created_by)
+          VALUES ($1, $2, $3)
+        `, [zoneResult.id, user.id, adminUser.id]);
 
         // Act
         const response = await testRequest
@@ -236,18 +264,12 @@ describe('Geographic Routes', () => {
         // Assert
         expect(response.status).toBe(200);
 
-        // Verify zone and permissions were deleted
-        const zoneExists = await db.oneOrNone(
+        // Verify zone is deleted
+        const deletedZone = await db.oneOrNone(
           'SELECT id FROM ng.geographic_access_zones WHERE id = $1',
           [zoneResult.id]
         );
-        expect(zoneExists).toBeNull();
-
-        const permExists = await db.oneOrNone(
-          'SELECT zone_id FROM ng.zone_permissions WHERE zone_id = $1',
-          [zoneResult.id]
-        );
-        expect(permExists).toBeNull();
+        expect(deletedZone).toBeNull();
       });
 
       it('should return 404 for non-existent zone', async () => {

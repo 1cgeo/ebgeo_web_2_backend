@@ -107,6 +107,32 @@ describe('Auth Routes', () => {
       expect(cookie).toContain('HttpOnly');
       expect(cookie).toContain('token=');
     });
+
+    it('should handle concurrent login attempts from same user', async () => {
+      const { user, password } = await createTestUser(UserRole.USER);
+      
+      // Fazer múltiplas requisições de login simultâneas
+      const loginPromises = Array(3).fill(null).map(() => 
+        testRequest
+          .post('/api/auth/login')
+          .send({
+            username: user.username,
+            password: password
+          })
+      );
+    
+      const responses = await Promise.all(loginPromises);
+      
+      // Todas devem ser bem-sucedidas
+      responses.forEach(response => {
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('token');
+      });
+    
+      // Verificar se last_login foi atualizado corretamente
+      const updatedUser = await db.one('SELECT * FROM ng.users WHERE id = $1', [user.id]);
+      expect(updatedUser.last_login).not.toBeNull();
+    });
   });
 
   describe('GET /api/auth/validate-api-key', () => {
@@ -169,6 +195,46 @@ describe('Auth Routes', () => {
 
       // Assert
       expect(response.status).toBe(401);
+    });
+
+    it('should validate API key from both header and query param simultaneously', async () => {
+      const { user } = await createTestUser();
+      const { user: otherUser } = await createTestUser();
+      
+      // Enviar uma API key diferente no header e na query
+      const response = await testRequest
+        .get('/api/auth/validate-api-key')
+        .set('x-api-key', user.api_key)
+        .query({ api_key: otherUser.api_key });
+  
+      // Deve priorizar o header
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message', 'API key válida');
+    });
+
+    it('should handle API key with valid format but invalid checksum', async () => {
+      // UUID v4 tem regras específicas para alguns bits
+      // Este UUID tem formato válido mas não segue as regras do v4
+      const invalidV4Key = '00000000-0000-0000-0000-000000000000';
+      
+      const response = await testRequest
+        .get('/api/auth/validate-api-key')
+        .set('x-api-key', invalidV4Key);
+  
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'API key inválida');
+    });
+    
+    it('should handle malformed API keys with correct length', async () => {
+      // UUID válido mas que não existe no sistema
+      const fakeApiKey = '00000000-0000-4000-a000-000000000000';
+      
+      const response = await testRequest
+        .get('/api/auth/validate-api-key')
+        .set('x-api-key', fakeApiKey);
+    
+      expect(response.status).toBe(401);
+      expect(response.body).toHaveProperty('message', 'API key inválida');
     });
   });
 
@@ -432,7 +498,4 @@ describe('Auth Routes', () => {
       expect(response.body).toHaveProperty('message', 'Token inválido');
     });
   });
-
-
-
 });

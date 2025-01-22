@@ -89,10 +89,9 @@ export async function getZonePermissions(req: Request, res: Response) {
   }
 
   const { zoneId } = req.params;
-
   try {
-    const exists = await db.one(queries.CHECK_ZONE_EXISTS, [zoneId]);
-    if (!exists.exists) {
+    const exists = await db.oneOrNone(queries.CHECK_ZONE_EXISTS, [zoneId]);
+    if (!exists) {
       throw ApiError.notFound('Zona não encontrada');
     }
 
@@ -221,8 +220,8 @@ export async function updateZonePermissions(req: Request, res: Response) {
   const { userIds, groupIds } = req.body as UpdateZonePermissionsRequest;
 
   try {
-    const exists = await db.one(queries.CHECK_ZONE_EXISTS, [zoneId]);
-    if (!exists.exists) {
+    const exists = await db.oneOrNone(queries.CHECK_ZONE_EXISTS, [zoneId]);
+    if (!exists) {
       throw ApiError.notFound('Zona não encontrada');
     }
 
@@ -297,8 +296,8 @@ export async function deleteZone(req: Request, res: Response) {
   const { zoneId } = req.params;
 
   try {
-    const exists = await db.one(queries.CHECK_ZONE_EXISTS, [zoneId]);
-    if (!exists.exists) {
+    const exists = await db.oneOrNone(queries.CHECK_ZONE_EXISTS, [zoneId]);
+    if (!exists) {
       throw ApiError.notFound('Zona não encontrada');
     }
 
@@ -313,7 +312,7 @@ export async function deleteZone(req: Request, res: Response) {
       },
     });
 
-    await db.one(queries.DELETE_ZONE, [zoneId]);
+    await db.none(queries.DELETE_ZONE, [zoneId]);
 
     logger.logAccess('Zone deleted', {
       userId: req.user.userId,

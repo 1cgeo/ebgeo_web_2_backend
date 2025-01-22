@@ -19,6 +19,8 @@ CREATE TABLE ng.audit_trail (
             'GROUP_CREATE',
             'GROUP_UPDATE',
             'GROUP_DELETE',
+            'ZONE_CREATE',
+            'ZONE_DELETE',
             'MODEL_PERMISSION_CHANGE',
             'ZONE_PERMISSION_CHANGE',
             'API_KEY_REGENERATE',
