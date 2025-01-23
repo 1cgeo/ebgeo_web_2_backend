@@ -76,16 +76,31 @@ async function updateUserPermissions(
   userIds: string[],
   createdBy: string,
 ) {
-  // Deletar permissões existentes
+  // Validar existência dos usuários primeiro
+  const validUsers = await t.manyOrNone(
+    'SELECT id FROM ng.users WHERE id::text = ANY($1::text[]) AND is_active = true',
+    [userIds],
+  );
+
+  const foundIds = validUsers.map(u => u.id);
+  const invalidIds = userIds.filter(id => !foundIds.includes(id));
+
+  if (invalidIds.length > 0) {
+    throw ApiError.unprocessableEntity('Usuários não encontrados', {
+      invalidIds,
+    });
+  }
+
   await t.none('DELETE FROM ng.model_permissions WHERE model_id = $1', [
     modelId,
   ]);
 
-  // Se houver novos IDs, inserir um por um de forma segura
   if (userIds.length > 0) {
     await t.none(
-      `INSERT INTO ng.model_permissions (model_id, user_id, created_by)
-        SELECT $1, unnest($2::uuid[]), $3`,
+      `INSERT INTO ng.model_permissions (model_id, user_id, created_by, created_at)
+      SELECT $1, id::uuid, $3, CURRENT_TIMESTAMP
+      FROM ng.users 
+      WHERE id::text = ANY($2::text[])`,
       [modelId, userIds, createdBy],
     );
   }
@@ -97,16 +112,31 @@ async function updateGroupPermissions(
   groupIds: string[],
   createdBy: string,
 ) {
-  // Deletar permissões existentes
+  // Validar existência dos grupos primeiro
+  const validGroups = await t.manyOrNone(
+    'SELECT id FROM ng.groups WHERE id::text = ANY($1::text[])',
+    [groupIds],
+  );
+
+  const foundIds = validGroups.map(g => g.id);
+  const invalidIds = groupIds.filter(id => !foundIds.includes(id));
+
+  if (invalidIds.length > 0) {
+    throw ApiError.unprocessableEntity('Grupos não encontrados', {
+      invalidIds,
+    });
+  }
+
   await t.none('DELETE FROM ng.model_group_permissions WHERE model_id = $1', [
     modelId,
   ]);
 
-  // Se houver novos IDs, inserir um por um de forma segura
   if (groupIds.length > 0) {
     await t.none(
-      `INSERT INTO ng.model_group_permissions (model_id, group_id, created_by)
-       SELECT $1, unnest($2::uuid[]), $3`,
+      `INSERT INTO ng.model_group_permissions (model_id, group_id, created_by, created_at)
+      SELECT $1, id::uuid, $3, CURRENT_TIMESTAMP  
+      FROM ng.groups
+      WHERE id::text = ANY($2::text[])`,
       [modelId, groupIds, createdBy],
     );
   }
@@ -177,6 +207,9 @@ export async function updateModelPermissions(req: Request, res: Response) {
 
     return res.json({ message: 'Permissões atualizadas com sucesso' });
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
       endpoint: '/catalog3d/permissions',

@@ -3,8 +3,17 @@ import { createTestUser } from '../../helpers/auth.helper.js';
 import { testRequest } from '../../helpers/request.helper.js';
 import { UserRole } from '../../../src/features/auth/auth.types.js';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('Users Routes', () => {
+  beforeEach(async () => {
+    await db.tx(async t => {
+      await t.none('DELETE FROM ng.model_permissions WHERE user_id IN (SELECT id FROM ng.users)');
+      await t.none('DELETE FROM ng.user_groups WHERE user_id IN (SELECT id FROM ng.users)');
+      await t.none('DELETE FROM ng.users');
+    });
+  });
+
   describe('GET /api/users', () => {
     it('should list users when authenticated as admin', async () => {
       // Arrange
@@ -280,6 +289,170 @@ describe('Users Routes', () => {
 
       // Assert
       expect(response.status).toBe(422);
+    });
+  });
+});
+
+describe('Extended Users Routes Tests', () => {
+  beforeEach(async () => {
+    await db.tx(async t => {
+      await t.none('DELETE FROM ng.model_permissions WHERE user_id IN (SELECT id FROM ng.users)');
+      await t.none('DELETE FROM ng.user_groups WHERE user_id IN (SELECT id FROM ng.users)');
+      await t.none('DELETE FROM ng.users');
+    });
+  });
+
+  describe('GET /api/users with filters', () => {
+    it('should handle pagination correctly', async () => {
+      // Create admin user for the test
+      const { token, user: adminUser } = await createTestUser(UserRole.ADMIN);
+  
+      // Insert 5 users with known data
+      const testUsers: Array<{ id: string; username: string }> = [];
+      
+      for (let i = 0; i < 5; i++) {
+        const result = await db.one<{ id: string; username: string }>(`
+          INSERT INTO ng.users 
+          (username, email, password, role, is_active, api_key, created_by, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, true, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          RETURNING id, username
+        `, [
+          `test_${i}`,
+          `paginate${i}@test.com`,
+          'password_hash',
+          'user',
+          uuidv4(),
+          adminUser.id
+        ]);
+        testUsers.push(result);
+      }
+  
+      // Get first page
+      const firstPage = await testRequest
+        .get('/api/users?page=1&limit=2')
+        .set('Authorization', `Bearer ${token}`);
+  
+      // Get second page
+      const secondPage = await testRequest
+        .get('/api/users?page=2&limit=2')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Get third page
+      const thirdPage = await testRequest
+        .get('/api/users?page=3&limit=2')
+        .set('Authorization', `Bearer ${token}`);
+
+      // Assertions
+      expect(firstPage.status).toBe(200);
+      expect(firstPage.body.users.length).toBe(2);
+      expect(secondPage.body.users.length).toBe(2);
+      expect(thirdPage.body.users.length).toBe(2);
+  
+      // Verify total count
+      expect(firstPage.body.total).toBe(6);
+      expect(firstPage.body.page).toBe(1);
+      expect(secondPage.body.page).toBe(2);
+      expect(thirdPage.body.page).toBe(3);
+  
+      // Verify no duplicates between pages
+      const allReturnedIds = [
+        ...firstPage.body.users.map((u: { id: string }) => u.id),
+        ...secondPage.body.users.map((u: { id: string }) => u.id),
+        ...thirdPage.body.users.map((u: { id: string }) => u.id)
+      ];
+  
+      const uniqueIds = new Set(allReturnedIds);
+      expect(uniqueIds.size).toBe(allReturnedIds.length);
+  
+      // Verify returned users are from our test set
+      const testUserIds = new Set(testUsers.map(u => u.id));
+      testUserIds.add(adminUser.id)
+      for (const id of allReturnedIds) {
+        expect(testUserIds.has(id)).toBe(true);
+      }
+    });
+  });
+
+  describe('Password Management', () => {
+    it('should validate password complexity requirements', async () => {
+      const { token, user, password: currentPassword } = await createTestUser(UserRole.USER);
+      const invalidPasswords = [
+        'short',              // Too short
+        'nouppercase123!',    // No uppercase
+        'NOLOWERCASE123!',    // No lowercase
+        'NoSpecialChar123',   // No special char
+        'NoNumber!@#'         // No number
+      ];
+
+      for (const newPassword of invalidPasswords) {
+        const response = await testRequest
+          .put(`/api/users/${user.id}/password`)
+          .set('Authorization', `Bearer ${token}`)
+          .send({
+            currentPassword,
+            newPassword
+          });
+
+        expect(response.status).toBe(422);
+        expect(response.body.message).toBe('Dados inválidos');
+      }
+    });
+  });
+
+  describe('User Profile and Permissions', () => {
+    it('should return correct model permissions format', async () => {
+      const { token, user } = await createTestUser(UserRole.USER);
+      const modelId = uuidv4();
+
+      await db.tx(async t => {
+        await t.none(`
+          INSERT INTO ng.catalogo_3d (id, name, url, type)
+          VALUES ($1, $2, $3, $4)
+        `, [modelId, 'Test Model', 'http://test.com', 'mesh']);
+
+        await t.none(`
+          INSERT INTO ng.model_permissions (model_id, user_id)
+          VALUES ($1, $2)
+        `, [modelId, user.id]);
+      });
+
+      const response = await testRequest
+        .get('/api/users/me')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.permissions.models.items[0]).toMatchObject({
+        id: modelId,
+        access_type: 'direct'
+      });
+    });
+  });
+
+  describe('User Management Edge Cases', () => {
+    it('should handle email uniqueness constraint', async () => {
+      const { token: adminToken } = await createTestUser(UserRole.ADMIN);
+      const { user: user1 } = await createTestUser(UserRole.USER);
+      const { user: user2 } = await createTestUser(UserRole.USER);
+      const timestamp = Date.now();
+      const newEmail = `unique_${timestamp}@example.com`;
+
+      // Update sequentially to ensure predictable behavior
+      const response1 = await testRequest
+        .put(`/api/users/${user1.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: newEmail });
+
+      const response2 = await testRequest
+        .put(`/api/users/${user2.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: newEmail });
+
+      expect(response1.status).toBe(200);
+      expect(response2.status).toBe(409);
+
+      const usersWithEmail = await db.any('SELECT id FROM ng.users WHERE email = $1', [newEmail]);
+      expect(usersWithEmail.length).toBe(1);
+      expect(usersWithEmail[0].id).toBe(user1.id);
     });
   });
 });

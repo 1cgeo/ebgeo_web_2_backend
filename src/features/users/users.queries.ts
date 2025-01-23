@@ -1,33 +1,33 @@
 export const LIST_USERS = `
-  WITH user_metrics AS (
-    SELECT 
-      u.id,
-      COUNT(DISTINCT ug.group_id) as group_count
-    FROM ng.users u
-    LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
-    GROUP BY u.id
-  )
+WITH user_metrics AS (
   SELECT 
-    u.id, 
-    u.username, 
-    u.email, 
-    u.role, 
-    u.is_active,
-    u.last_login,
-    u.created_at,
-    u.updated_at,
-    COALESCE(um.group_count, 0) as group_count
+    u.id,
+    COUNT(DISTINCT ug.group_id) as group_count
   FROM ng.users u
-  LEFT JOIN user_metrics um ON u.id = um.id
-  WHERE 
-    ($1::text IS NULL OR 
-      u.username ILIKE '%' || $1 || '%' OR 
-      u.email ILIKE '%' || $1 || '%'
-    )
-    AND ($2::text IS NULL OR u.role = $2)
-    AND ($3::boolean IS NULL OR u.is_active = $3)
-  ORDER BY u.created_at DESC
-  LIMIT $4 OFFSET $5;
+  LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
+  GROUP BY u.id
+)
+SELECT 
+  u.id, 
+  u.username, 
+  u.email, 
+  u.role, 
+  u.is_active,
+  u.last_login,
+  u.created_at,
+  u.updated_at,
+  COALESCE(um.group_count, 0) as group_count
+FROM ng.users u
+LEFT JOIN user_metrics um ON u.id = um.id
+WHERE 
+  (COALESCE($1, '') = '' OR 
+    u.username ILIKE '%' || COALESCE($1, '') || '%' OR 
+    u.email ILIKE '%' || COALESCE($1, '') || '%'
+  )
+  AND (COALESCE($2, '') = '' OR u.role = $2)
+  AND (COALESCE($3::boolean, NULL) IS NULL OR u.is_active = $3)
+ORDER BY u.created_at DESC
+LIMIT $4 OFFSET $5;
 `;
 
 export const COUNT_USERS = `

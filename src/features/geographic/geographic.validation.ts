@@ -20,6 +20,30 @@ export const searchValidation: ValidationChain[] = [
     .withMessage('Longitude deve estar entre -180 e 180 graus'),
 ];
 
+const validateGeoJSON = (geom: any): boolean => {
+  try {
+    if (typeof geom !== 'object') return false;
+    if (geom.type !== 'Polygon') return false;
+    if (!Array.isArray(geom.coordinates)) return false;
+    if (!Array.isArray(geom.coordinates[0])) return false;
+
+    // Validar se é um polígono válido (primeiro e último ponto iguais)
+    const ring = geom.coordinates[0];
+    if (!Array.isArray(ring) || ring.length < 4) return false;
+
+    // Verificar se todos os pontos são coordenadas válidas
+    return ring.every(
+      (point: any) =>
+        Array.isArray(point) &&
+        point.length === 2 &&
+        typeof point[0] === 'number' &&
+        typeof point[1] === 'number',
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const createZoneValidation: ValidationChain[] = [
   body('name')
     .trim()
@@ -42,17 +66,12 @@ export const createZoneValidation: ValidationChain[] = [
     .notEmpty()
     .withMessage('Geometria é obrigatória')
     .custom(value => {
-      try {
-        if (typeof value === 'string') {
-          value = JSON.parse(value);
-        }
-        if (!value.type || !value.coordinates) {
-          throw new Error('Formato GeoJSON inválido');
-        }
-        return true;
-      } catch {
-        throw new Error('Geometria inválida: deve ser um GeoJSON válido');
+      if (!validateGeoJSON(value)) {
+        throw new Error(
+          'Geometria inválida: deve ser um GeoJSON Polygon válido',
+        );
       }
+      return true;
     }),
 
   body('userIds')

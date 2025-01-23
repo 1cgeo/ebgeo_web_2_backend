@@ -297,5 +297,141 @@ describe('Identify Routes', () => {
       expect(response.body).toHaveProperty('model_name', model.name);
       expect(response.body).toHaveProperty('model_description', model.description);
     });
+
+    it('should prioritize xy_distance when z_distance is equal', async () => {
+      // Arrange
+      const model = await createTestModel('public');
+      const feature1 = await createTestFeature(model.id, {
+        altitude_base: 750,
+        altitude_topo: 800,
+        lon: -46.6333,
+        lat: -23.5505
+      });
+      await createTestFeature(model.id, {
+        altitude_base: 750,
+        altitude_topo: 800,
+        lon: -46.6343, // Mais distante horizontalmente mas mesma altitude
+        lat: -23.5505
+      });
+      
+      // Query point exatamente no centro vertical da feature1
+      const queryPoint = {
+        lat: -23.5505,
+        lon: -46.6333,
+        z: 775  // Ponto médio entre base (750) e topo (800)
+      };
+    
+      // Act
+      const response = await testRequest
+        .get('/api/identify/feicoes')
+        .query(queryPoint);
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('id', feature1.id);
+      expect(response.body.z_distance).toBe(0);
+      expect(response.body.xy_distance).toBeLessThanOrEqual(0.001);
+    });
+
+    it('should not find features outside search buffer radius', async () => {
+      // Arrange
+      const model = await createTestModel('public');
+      const centerLon = -46.6333;
+      const centerLat = -23.5505;
+      
+      await createTestFeature(model.id, {
+        lon: centerLon,
+        lat: centerLat
+      });
+      
+      // Point ~500 metros de distância (fora do buffer de 300m)
+      const offset = 0.004; // aproximadamente 500m em graus
+      const queryPoint = {
+        lat: centerLat + offset,
+        lon: centerLon + offset,
+        z: 760
+      };
+    
+      // Act
+      const response = await testRequest
+        .get('/api/identify/feicoes')
+        .query(queryPoint);
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('message');
+      expect(response.body.message).toBe('Nenhuma feição encontrada para as coordenadas fornecidas.');
+    });
+
+    it('should find closest feature when multiple models overlap', async () => {
+      // Arrange
+      const model1 = await createTestModel('public');
+      const model2 = await createTestModel('public');
+      
+      // Feature mais próxima do ponto de busca
+      const feature1 = await createTestFeature(model1.id, {
+        altitude_base: 750,
+        altitude_topo: 800,
+        lon: -46.6333,
+        lat: -23.5505
+      });
+      
+      // Feature um pouco mais distante
+      await createTestFeature(model2.id, {
+        altitude_base: 750,
+        altitude_topo: 800,
+        lon: -46.6335,
+        lat: -23.5507
+      });
+    
+      const queryPoint = {
+        lat: -23.5505,
+        lon: -46.6333,
+        z: 775
+      };
+    
+      // Act
+      const response = await testRequest
+        .get('/api/identify/feicoes')
+        .query(queryPoint);
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('id', feature1.id);
+      expect(response.body).toHaveProperty('model_id', model1.id);
+      expect(response.body.xy_distance).toBeLessThanOrEqual(0.001);
+    });
+
+    it('should handle overlapping features from different models', async () => {
+      // Arrange
+      const model1 = await createTestModel('public');
+      const model2 = await createTestModel('public');
+      
+      const feature1 = await createTestFeature(model1.id, {
+        altitude_base: 750,
+        altitude_topo: 800
+      });
+      
+      await createTestFeature(model2.id, {
+        altitude_base: 700,
+        altitude_topo: 850  // Maior amplitude mas mesmo centro
+      });
+    
+      const queryPoint = {
+        lat: -23.5505,
+        lon: -46.6333,
+        z: 760
+      };
+    
+      // Act
+      const response = await testRequest
+        .get('/api/identify/feicoes')
+        .query(queryPoint);
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('id', feature1.id);
+      expect(response.body).toHaveProperty('model_id', model1.id);
+    });
   });
 });

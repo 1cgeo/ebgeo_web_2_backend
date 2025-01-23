@@ -27,16 +27,30 @@ export async function listUsers(
   req: Request<any, any, any, UserQueryParams>,
   res: Response,
 ) {
-  const { page = 1, limit = 10, search, status, role } = req.query;
+  let { page = 1, limit = 10, search, status, role } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
   try {
-    const isActive = status === 'all' ? null : status === 'active';
-    const roleFilter = role === 'all' ? null : role;
+    const isActive =
+      status === 'all'
+        ? null
+        : status === 'active'
+          ? true
+          : status === undefined
+            ? null
+            : false;
+    const roleFilter = role === 'all' ? null : role === undefined ? null : role;
+    const searchTerm = search === undefined ? null : search;
 
     const [users, total] = await Promise.all([
-      db.any(queries.LIST_USERS, [search, roleFilter, isActive, limit, offset]),
-      db.one(queries.COUNT_USERS, [search, roleFilter, isActive]),
+      db.any(queries.LIST_USERS, [
+        searchTerm,
+        roleFilter,
+        isActive,
+        limit,
+        offset,
+      ]),
+      db.one(queries.COUNT_USERS, [searchTerm, roleFilter, isActive]),
     ]);
 
     logger.logAccess('Users listed', {

@@ -51,7 +51,11 @@ nearest_feature AS (
     ST_Distance(e.geom, c.geom) AS xy_distance
   FROM filtered_identify e
   CROSS JOIN click_point c
-  WHERE ST_DWithin(e.geom, c.geom, 3)
+  WHERE ST_DWithin(
+    e.geom::geography, 
+    c.geom::geography, 
+    300
+  )
   ORDER BY 
     CASE 
       WHEN $3 < e.altitude_base THEN e.altitude_base - $3

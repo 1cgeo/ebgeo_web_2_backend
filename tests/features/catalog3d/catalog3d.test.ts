@@ -136,6 +136,98 @@ describe('Catalog3D Routes', () => {
       expect(response.body.page).toBe(2);
       expect(response.body.nr_records).toBe(1);
     });
+
+    it('should return private model when user has direct permission', async () => {
+      // Arrange
+      const { token, user } = await createTestUser(UserRole.USER);
+      const privateModel = await createTestModel('private');
+      await db.none(
+        'INSERT INTO ng.model_permissions (model_id, user_id) VALUES ($1, $2)',
+        [privateModel.id, user.id]
+      );
+      
+      // Act
+      const response = await testRequest
+        .get('/api/catalog3d/catalogo3d')
+        .set('Authorization', `Bearer ${token}`)
+        .query({ page: 1, nr_records: 10 });
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].id).toBe(privateModel.id);
+    });
+    
+    it('should return private model when user has group permission', async () => {
+      // Arrange
+      const { token, user } = await createTestUser(UserRole.USER);
+      const privateModel = await createTestModel('private');
+      
+      // Create group with unique name
+      const groupName = `Test Group ${uuidv4()}`;
+      const group = await db.one(
+        'INSERT INTO ng.groups (name, created_by) VALUES ($1, $2) RETURNING id',
+        [groupName, user.id]
+      );
+    
+      await db.none(
+        'INSERT INTO ng.user_groups (user_id, group_id, added_by) VALUES ($1, $2, $3)',
+        [user.id, group.id, user.id]
+      );
+      
+      await db.none(
+        'INSERT INTO ng.model_group_permissions (model_id, group_id, created_by) VALUES ($1, $2, $3)',
+        [privateModel.id, group.id, user.id]
+      );
+      
+      // Act
+      const response = await testRequest
+        .get('/api/catalog3d/catalogo3d')
+        .set('Authorization', `Bearer ${token}`)
+        .query({ page: 1, nr_records: 10 });
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].id).toBe(privateModel.id);
+    });
+
+    it('should properly rank search results by relevance', async () => {
+      // Arrange
+      const model1 = await db.one(
+        `INSERT INTO ng.catalogo_3d (
+          id, name, description, url, type, access_level,
+          data_criacao, data_carregamento,
+          search_vector
+        ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+          to_tsvector('portuguese', $2 || ' ' || $3)
+        ) RETURNING *`,
+        [uuidv4(), 'Test Drone Model', 'A simple test', 'url', 'mesh', 'public']
+      );
+      
+      const model2 = await db.one(
+        `INSERT INTO ng.catalogo_3d (
+          id, name, description, url, type, access_level,
+          data_criacao, data_carregamento,
+          search_vector
+        ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+          to_tsvector('portuguese', $2 || ' ' || $3)
+        ) RETURNING *`,
+        [uuidv4(), 'Another Model', 'Test drone description', 'url', 'mesh', 'public']
+      );
+    
+      // Act
+      const response = await testRequest
+        .get('/api/catalog3d/catalogo3d')
+        .query({ q: 'drone', page: 1, nr_records: 10 });
+    
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(2);
+      // Model1 should rank higher as 'drone' appears in the title
+      expect(response.body.data[0].id).toBe(model1.id);
+      expect(response.body.data[1].id).toBe(model2.id);
+    });
   });
 
   describe('GET /api/catalog3d/permissions/:modelId', () => {
@@ -204,6 +296,17 @@ describe('Catalog3D Routes', () => {
   });
 
   describe('PUT /api/catalog3d/permissions/:modelId', () => {
+    beforeEach(async () => {
+      await db.tx(async t => {
+        await t.none('DELETE FROM ng.model_permissions');
+        await t.none('DELETE FROM ng.model_group_permissions');
+        await t.none('DELETE FROM ng.user_groups');
+        await t.none('DELETE FROM ng.groups');
+        await t.none('DELETE FROM ng.catalogo_3d');
+        await t.none('DELETE FROM ng.users WHERE username LIKE \'test_user_%\'');
+      });
+    });
+    
     it('should require authentication', async () => {
       // Act
       const response = await testRequest
@@ -289,10 +392,11 @@ describe('Catalog3D Routes', () => {
       const { token, user: adminUser } = await createTestUser(UserRole.ADMIN);
       const model = await createTestModel();
       
-      // Create a test group
+      // Create test group with unique name
+      const groupName = `Test Group ${uuidv4()}`;
       const group = await db.one(
-        `INSERT INTO ng.groups (name, created_by) VALUES ($1, $2) RETURNING id`,
-        ['Test Group', adminUser.id]
+        'INSERT INTO ng.groups (name, created_by) VALUES ($1, $2) RETURNING id',
+        [groupName, adminUser.id]
       );
       
       // Act
@@ -302,7 +406,7 @@ describe('Catalog3D Routes', () => {
         .send({
           groupIds: [group.id]
         });
-
+    
       // Assert
       expect(response.status).toBe(200);
       
@@ -346,6 +450,47 @@ describe('Catalog3D Routes', () => {
 
       // Assert
       expect(response.status).toBe(422);
+    });
+
+    it('should validate all userIds exist when updating permissions', async () => {
+      // Arrange
+      const { token, user: adminUser } = await createTestUser(UserRole.ADMIN);
+      const model = await createTestModel();
+      const validUser = await createTestUser(UserRole.USER);
+      const nonExistentUserId = uuidv4();
+      
+      // Act
+      const response = await testRequest
+        .put(`/api/catalog3d/permissions/${model.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          userIds: [validUser.user.id, nonExistentUserId],
+          created_by: adminUser.id
+        });
+  
+      // Assert
+      expect(response.status).toBe(422);
+      expect(response.body.message).toMatch(/Usuários não encontrados/i);
+    });
+    
+    it('should validate all groupIds exist when updating permissions', async () => {
+      // Arrange 
+      const { token, user: adminUser } = await createTestUser(UserRole.ADMIN);
+      const model = await createTestModel();
+      const nonExistentGroupId = uuidv4();
+      
+      // Act
+      const response = await testRequest
+        .put(`/api/catalog3d/permissions/${model.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          groupIds: [nonExistentGroupId],
+          created_by: adminUser.id
+        });
+  
+      // Assert
+      expect(response.status).toBe(422);
+      expect(response.body.message).toMatch(/Grupos não encontrados/i);
     });
   });
 });

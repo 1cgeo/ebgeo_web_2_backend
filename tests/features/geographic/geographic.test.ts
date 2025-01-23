@@ -3,6 +3,16 @@ import { createTestUser } from '../../helpers/auth.helper.js';
 import { testRequest } from '../../helpers/request.helper.js';
 import { UserRole } from '../../../src/features/auth/auth.types.js';
 
+interface GeographicResponse {
+  nome: string;
+  municipio?: string;
+  estado?: string;
+  tipo?: string;
+  name_similarity?: number;
+  distance_to_center?: number;
+  access_level: 'public' | 'private';
+}
+
 describe('Geographic Routes', () => {
   describe('GET /api/geographic/busca', () => {
     it('should search geographic names with valid parameters', async () => {
@@ -59,6 +69,72 @@ describe('Geographic Routes', () => {
       expect(response.status).toBe(422);
       expect(response.body.details).toBeDefined();
     });
+
+    it('should handle private names when user has permissions', async () => {
+      const { token, user } = await createTestUser(UserRole.USER);
+      
+      const zoneId = await db.one<{id: string}>(`
+        INSERT INTO ng.geographic_access_zones (
+          name, geom, created_by
+        ) VALUES (
+          'Test Zone', 
+          ST_SetSRID(ST_GeomFromText('POLYGON((-46.7 -23.4, -46.6 -23.4, -46.6 -23.5, -46.7 -23.5, -46.7 -23.4))'), 4674),
+          $1
+        ) RETURNING id
+      `, [user.id]);
+      
+      await db.none(`
+        INSERT INTO ng.nomes_geograficos (
+          nome, access_level, geom
+        ) VALUES (
+          'Local Privado', 'private',
+          ST_SetSRID(ST_MakePoint(-46.65, -23.45), 4674)
+        )
+      `);
+      
+      await db.none(`
+        INSERT INTO ng.zone_permissions (zone_id, user_id)
+        VALUES ($1, $2)
+      `, [zoneId.id, user.id]);
+    
+      const response = await testRequest
+        .get('/api/geographic/busca')
+        .set('Authorization', `Bearer ${token}`)
+        .query({
+          q: 'Local',
+          lat: -23.45,
+          lon: -46.65
+        });
+    
+      expect(response.status).toBe(200);
+      const results = response.body as GeographicResponse[];
+      expect(results.some(result => result.nome === 'Local Privado')).toBe(true);
+    });
+    
+    it('should combine similarity and distance in relevance scoring', async () => {
+      await db.none(`
+        INSERT INTO ng.nomes_geograficos (
+          nome, access_level, geom
+        ) VALUES 
+        ('Parque do Ibirapuera', 'public', ST_SetSRID(ST_MakePoint(-46.657, -23.588), 4674)),
+        ('Ibirapuera Mall', 'public', ST_SetSRID(ST_MakePoint(-46.672, -23.601), 4674)),
+        ('Shopping Morumbi', 'public', ST_SetSRID(ST_MakePoint(-46.702, -23.622), 4674))
+      `);
+    
+      const response = await testRequest
+        .get('/api/geographic/busca')
+        .query({
+          q: 'Ibirapuera',
+          lat: -23.588,
+          lon: -46.657
+        });
+    
+      expect(response.status).toBe(200);
+      const results = response.body as GeographicResponse[];
+      expect(results.length).toBeGreaterThan(1);
+      expect(results.map(r => r.nome)).toContain('Parque do Ibirapuera');
+      expect(results.map(r => r.nome)).toContain('Ibirapuera Mall');
+    });
   });
 
   describe('Geographic Zones (Admin Routes)', () => {
@@ -99,6 +175,8 @@ describe('Geographic Routes', () => {
         // Assert
         expect(response.status).toBe(403);
       });
+
+
     });
 
     describe('POST /api/geographic/zones', () => {
@@ -144,6 +222,48 @@ describe('Geographic Routes', () => {
 
         // Assert
         expect(response.status).toBe(422);
+        expect(response.body.details).toBeDefined();
+      });
+
+      it('should reject zones with invalid geometry', async () => {
+        const { token } = await createTestUser(UserRole.ADMIN);
+        
+        const invalidData = {
+          name: 'Test Zone',
+          geom: {
+            type: 'Point', // Tipo inválido, deveria ser Polygon
+            coordinates: [-46.6333, -23.5505]
+          }
+        };
+      
+        const response = await testRequest
+          .post('/api/geographic/zones')
+          .set('Authorization', `Bearer ${token}`)
+          .send(invalidData);
+      
+        expect(response.status).toBe(422);
+        expect(response.body.details).toBeDefined();
+        expect(response.body.message).toBe('Dados inválidos');
+      });
+
+      it('should reject zones with invalid polygon', async () => {
+        const { token } = await createTestUser(UserRole.ADMIN);
+        
+        const invalidData = {
+          name: 'Test Zone',
+          geom: {
+            type: 'Polygon',
+            coordinates: [[]] // Invalid empty coordinates
+          }
+        };
+      
+        const response = await testRequest
+          .post('/api/geographic/zones')
+          .set('Authorization', `Bearer ${token}`)
+          .send(invalidData);
+      
+        expect(response.status).toBe(422);
+        expect(response.body.message).toBe('Dados inválidos');
         expect(response.body.details).toBeDefined();
       });
     });
@@ -230,6 +350,42 @@ describe('Geographic Routes', () => {
         `, [zoneId, testUser.id]);
         expect(parseInt(perms.count)).toBe(1);
       });
+
+      it('should handle group permissions correctly', async () => {
+        const { token: adminToken, user: adminUser } = await createTestUser(UserRole.ADMIN);
+        const { user: regularUser } = await createTestUser(UserRole.USER);
+      
+        // Create zone first
+        const zone = await db.one<{id: string}>(`
+          INSERT INTO ng.geographic_access_zones (
+            name, geom, created_by
+          ) VALUES (
+            'Test Zone',
+            ST_SetSRID(ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))'), 4674),
+            $1
+          ) RETURNING id
+        `, [adminUser.id]);
+      
+        // Create group and add user
+        const group = await db.one<{id: string}>(`
+          INSERT INTO ng.groups (name, created_by) VALUES ('Test Group', $1) RETURNING id
+        `, [adminUser.id]);
+      
+        await db.none(`
+          INSERT INTO ng.user_groups (user_id, group_id, added_by) VALUES ($1, $2, $3)
+        `, [regularUser.id, group.id, adminUser.id]);
+      
+        const updateData = {
+          groupIds: [group.id]
+        };
+      
+        const response = await testRequest
+          .put(`/api/geographic/zones/${zone.id}/permissions`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send(updateData);
+      
+        expect(response.status).toBe(200);
+      });
     });
 
     describe('DELETE /api/geographic/zones/:zoneId', () => {
@@ -285,6 +441,8 @@ describe('Geographic Routes', () => {
         // Assert
         expect(response.status).toBe(404);
       });
+
+
     });
   });
 });
