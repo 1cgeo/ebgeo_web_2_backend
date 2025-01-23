@@ -96,7 +96,7 @@ describe('Groups Routes', () => {
     });
   });
 
-  xdescribe('POST /api/groups', () => {
+  describe('POST /api/groups', () => {
     it('should create a new group when authenticated as admin', async () => {
       // Arrange
       const { token, user } = await createTestUser(UserRole.ADMIN);
@@ -163,7 +163,7 @@ describe('Groups Routes', () => {
     });
   });
 
-  xdescribe('PUT /api/groups/:id', () => {
+  describe('PUT /api/groups/:id', () => {
     it('should update existing group', async () => {
       // Arrange
       const { token, user } = await createTestUser(UserRole.ADMIN);
@@ -264,7 +264,7 @@ describe('Groups Routes', () => {
     });
   });
 
-  xdescribe('DELETE /api/groups/:id', () => {
+  describe('DELETE /api/groups/:id', () => {
     it('should delete group and its associations', async () => {
       // Arrange
       const { token, user } = await createTestUser(UserRole.ADMIN);

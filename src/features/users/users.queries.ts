@@ -51,7 +51,7 @@ export const GET_USER_DETAILS = `
       creator.username as added_by
     FROM ng.user_groups ug
     JOIN ng.groups g ON g.id = ug.group_id
-    JOIN ng.users creator ON ug.added_by = creator.id
+    LEFT JOIN ng.users creator ON ug.added_by = creator.id
     WHERE ug.user_id = $1
   ),
   model_permissions AS (

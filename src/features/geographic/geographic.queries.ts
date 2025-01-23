@@ -87,7 +87,7 @@ SELECT
     (
       SELECT json_agg(json_build_object('id', u.id, 'username', u.username))
       FROM ng.zone_permissions zp
-      JOIN ng.users u ON zp.user_id = u.id
+      LEFT JOIN ng.users u ON zp.user_id = u.id
       WHERE zp.zone_id = z.id
     ),
     '[]'

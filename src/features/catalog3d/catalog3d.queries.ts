@@ -122,8 +122,8 @@ export const LIST_MODEL_PERMISSIONS = `
           'created_by', u_created.username
       )
       FROM ng.model_permissions mp
-      JOIN ng.users u ON mp.user_id = u.id
-      JOIN ng.users u_created ON mp.created_by = u_created.id
+      LEFT JOIN ng.users u ON mp.user_id = u.id
+      LEFT JOIN ng.users u_created ON mp.created_by = u_created.id
       WHERE mp.model_id = c.id
     ), '{}') as user_permissions,
     COALESCE(ARRAY(
@@ -134,7 +134,7 @@ export const LIST_MODEL_PERMISSIONS = `
           'created_by', u.username
       )
       FROM ng.model_group_permissions mgp
-      JOIN ng.users u ON mgp.created_by = u.id
+      LEFT JOIN ng.users u ON mgp.created_by = u.id
       JOIN ng.groups g ON mgp.group_id = g.id
       WHERE mgp.model_id = c.id
     ), '{}') as group_permissions

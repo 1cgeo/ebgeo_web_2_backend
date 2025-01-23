@@ -29,21 +29,21 @@ export const LIST_GROUPS = `
     gm.zone_permissions,
     COALESCE(gm.members, '[]') as members
   FROM ng.groups g
-  JOIN ng.users creator ON g.created_by = creator.id
+  LEFT JOIN ng.users creator ON g.created_by = creator.id
   LEFT JOIN group_metrics gm ON g.id = gm.id
   WHERE (COALESCE($1, '') = '' OR 
-    LOWER(g.name) ILIKE '%' || COALESCE($1, '') || '%' OR 
-    LOWER(g.description) ILIKE '%' || COALESCE($1, '') || '%')
+    LOWER(g.name) ILIKE '%' || LOWER(COALESCE($1, '')) || '%' OR 
+    LOWER(g.description) ILIKE '%' || LOWER(COALESCE($1, '')) || '%')
   ORDER BY g.name
   LIMIT $2 OFFSET $3;
 `;
 
 export const COUNT_GROUPS = `
   SELECT COUNT(*)
-  FROM ng.groups u
+  FROM ng.groups g
   WHERE (COALESCE($1, '') = '' OR 
-    LOWER(name) ILIKE '%' || COALESCE($1, '') || '%' OR 
-    LOWER(description) ILIKE '%' || COALESCE($1, '') || '%')
+    LOWER(g.name) ILIKE '%' || LOWER(COALESCE($1, '')) || '%' OR 
+    LOWER(g.description) ILIKE '%' || LOWER(COALESCE($1, '')) || '%')
 `;
 
 export const GET_GROUP = `
@@ -77,7 +77,7 @@ export const GET_GROUP = `
     gm.zone_permissions,
     COALESCE(gm.members, '[]') as members
   FROM ng.groups g
-  JOIN ng.users creator ON g.created_by = creator.id
+  LEFT JOIN ng.users creator ON g.created_by = creator.id
   LEFT JOIN group_metrics gm ON true
   WHERE g.id = $1;
 `;
