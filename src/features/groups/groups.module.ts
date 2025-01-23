@@ -132,10 +132,10 @@ export async function createGroup(
 export async function updateGroup(
   req: Request<{ id: string }, any, UpdateGroupDTO>,
   res: Response,
- ) {
+) {
   const { id } = req.params;
   const { name, description, userIds } = req.body;
- 
+
   try {
     const result = await db.tx(async t => {
       if (!req.user?.userId) {
@@ -149,7 +149,7 @@ export async function updateGroup(
       if (!currentGroup) {
         throw ApiError.notFound('Grupo não encontrado');
       }
- 
+
       // Se mudar o nome, verificar se já existe
       if (name && name !== currentGroup.name) {
         const existingGroup = await t.oneOrNone(
@@ -160,10 +160,10 @@ export async function updateGroup(
           throw ApiError.conflict('Já existe um grupo com este nome');
         }
       }
- 
+
       // Atualizar dados do grupo
       await t.one(queries.UPDATE_GROUP, [name, description, id]);
- 
+
       // Atualizar membros se fornecidos
       if (userIds !== undefined) {
         await t.none(queries.UPDATE_GROUP_MEMBERS, [
@@ -172,9 +172,9 @@ export async function updateGroup(
           req.user.userId,
         ]);
       }
- 
+
       const updatedGroup = await t.one(queries.GET_GROUP, [id]);
- 
+
       // Adicionar auditoria
       await createAudit(
         req,
@@ -186,26 +186,35 @@ export async function updateGroup(
           targetName: currentGroup.name,
           details: {
             changes: {
-              name: name !== undefined ? {
-                old: currentGroup.name,
-                new: name,
-              } : undefined,
-              description: description !== undefined ? {
-                old: currentGroup.description,
-                new: description,
-              } : undefined,
-              members: userIds !== undefined ? {
-                count: userIds.length,
-              } : undefined,
+              name:
+                name !== undefined
+                  ? {
+                      old: currentGroup.name,
+                      new: name,
+                    }
+                  : undefined,
+              description:
+                description !== undefined
+                  ? {
+                      old: currentGroup.description,
+                      new: description,
+                    }
+                  : undefined,
+              members:
+                userIds !== undefined
+                  ? {
+                      count: userIds.length,
+                    }
+                  : undefined,
             },
           },
         },
         t,
       );
- 
+
       return updatedGroup;
     });
- 
+
     logger.logAccess('Group updated', {
       userId: req.user?.userId,
       additionalInfo: {
@@ -218,23 +227,30 @@ export async function updateGroup(
         memberCount: userIds?.length,
       },
     });
- 
+
     return res.json(result);
   } catch (error) {
     if (!(error instanceof ApiError)) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.ADMIN,
-      userId: req.user?.userId,
-      additionalInfo: {
-        operation: 'update_group',
-        groupId: id,
-        attemptedChanges: { name, description, memberCount: userIds?.length },
-      },
-    });
+      logger.logError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          category: LogCategory.ADMIN,
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'update_group',
+            groupId: id,
+            attemptedChanges: {
+              name,
+              description,
+              memberCount: userIds?.length,
+            },
+          },
+        },
+      );
     }
     throw error;
   }
- }
+}
 
 export async function deleteGroup(req: Request, res: Response) {
   const { id } = req.params;
@@ -300,14 +316,17 @@ export async function deleteGroup(req: Request, res: Response) {
     return res.json({ message: 'Grupo removido com sucesso' });
   } catch (error) {
     if (!(error instanceof ApiError)) {
-      logger.logError(error instanceof Error ? error : new Error(String(error)), {
-        category: LogCategory.ADMIN,
-        userId: req.user?.userId,
-        additionalInfo: {
-          operation: 'delete_group',
-          groupId: id,
+      logger.logError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          category: LogCategory.ADMIN,
+          userId: req.user?.userId,
+          additionalInfo: {
+            operation: 'delete_group',
+            groupId: id,
+          },
         },
-      });
+      );
     }
     throw error;
   }
