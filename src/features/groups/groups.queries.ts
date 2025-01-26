@@ -42,8 +42,7 @@ export const LIST_GROUPS = `
          WHEN $4 = 'model_permissions_count' THEN gm.model_permissions_count::text
          WHEN $4 = 'zone_permissions_count' THEN gm.zone_permissions_count::text
          ELSE g.name
-    END
-    || CASE WHEN $5 = 'desc' THEN ' DESC' ELSE ' ASC' END
+    END $5:raw
   LIMIT $2 OFFSET $3;
 `;
 

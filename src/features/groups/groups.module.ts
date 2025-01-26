@@ -18,8 +18,16 @@ export async function listGroups(req: Request, res: Response) {
   const searchTerm = search === undefined ? null : search;
 
   try {
+    const validatedSortDirection = order === 'asc' ? 'ASC' : 'DESC';
+
     const [groups, total] = await Promise.all([
-      db.any(queries.LIST_GROUPS, [searchTerm, limit, offset, sort, order]),
+      db.any(queries.LIST_GROUPS, [
+        searchTerm,
+        limit,
+        offset,
+        sort,
+        validatedSortDirection,
+      ]),
       db.one(queries.COUNT_GROUPS, [searchTerm]),
     ]);
 
