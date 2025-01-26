@@ -98,4 +98,29 @@ export const geographicSchemas: Record<string, OpenAPISchema> = {
       },
     },
   },
+
+  ZoneListResponse: {
+    type: 'object',
+    required: ['zones', 'total', 'page', 'limit'],
+    properties: {
+      zones: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/GeographicZone'
+        }
+      },
+      total: {
+        type: 'integer',
+        description: 'Total de zonas'
+      },
+      page: {
+        type: 'integer',
+        description: 'Página atual'
+      },
+      limit: {
+        type: 'integer',
+        description: 'Itens por página'
+      }
+    }
+  }
 };

@@ -6,10 +6,11 @@ import { ApiError } from '../../common/errors/apiError.js';
 import {
   CHECK_MODEL_ACCESS,
   LIST_MODEL_PERMISSIONS,
+  COUNT_MODEL_PERMISSIONS,
 } from './catalog3d.queries.js';
 import {
-  ModelPermissionInfo,
   UpdateModelPermissionsRequest,
+  ModelPermissionsQueryParams,
 } from './catalog3d.types.js';
 import { UserRole } from '../auth/auth.types.js';
 import { createAudit } from '../../common/config/audit.js';
@@ -25,48 +26,59 @@ export async function checkModelAccess(
   return result.has_access;
 }
 
-export async function listModelPermissions(req: Request, res: Response) {
-  if (!req.user || req.user.role !== UserRole.ADMIN) {
-    throw ApiError.forbidden(
-      'Apenas administradores podem visualizar permissões',
-    );
-  }
-
-  const { modelId } = req.params;
+export async function listModelPermissions(
+  req: Request<any, any, any, ModelPermissionsQueryParams>,
+  res: Response,
+) {
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sort = 'name',
+    order = 'asc',
+  } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
+  const searchTerm = search === undefined ? null : search;
 
   try {
-    const model = await db.oneOrNone<ModelPermissionInfo>(
-      LIST_MODEL_PERMISSIONS,
-      [modelId],
-    );
+    const validatedSortDirection = order.toUpperCase();
 
-    if (!model) {
-      throw ApiError.notFound('Modelo não encontrado');
-    }
+    const [models, total] = await Promise.all([
+      db.any(LIST_MODEL_PERMISSIONS, [
+        searchTerm,
+        limit,
+        offset,
+        sort,
+        validatedSortDirection,
+      ]),
+      db.one(COUNT_MODEL_PERMISSIONS, [searchTerm]),
+    ]);
 
     logger.logAccess('Listed model permissions', {
-      userId: req.user.userId,
+      userId: req.user?.userId,
       additionalInfo: {
-        modelId,
-        role: req.user.role,
+        search,
+        page,
+        limit,
+        sort,
+        order,
+        modelCount: models.length,
       },
     });
 
-    return res.json(model);
+    return res.json({
+      models,
+      total: Number(total.count),
+      page: Number(page),
+      limit: Number(limit),
+    });
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
-      endpoint: '/catalog3d/permissions',
-      userId: req.user.userId,
-      additionalInfo: {
-        modelId,
-      },
+      userId: req.user?.userId,
+      additionalInfo: { operation: 'list_model_permissions' },
     });
-    throw ApiError.internal('Erro ao listar permissões do modelo');
+    throw error;
   }
 }
 

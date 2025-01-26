@@ -66,16 +66,59 @@ LIMIT 5;
 
 // Listar todas as zonas com estatísticas
 export const LIST_ZONES = `
+WITH zone_metrics AS (
+  SELECT 
+    z.id,
+    COUNT(DISTINCT zp.user_id) as user_count,
+    COUNT(DISTINCT zgp.group_id) as group_count,
+    ROUND((ST_Area(z.geom::geography) / 1000000)::numeric, 2) as area_km2
+  FROM ng.geographic_access_zones z
+  LEFT JOIN ng.zone_permissions zp ON z.id = zp.zone_id
+  LEFT JOIN ng.zone_group_permissions zgp ON z.id = zgp.zone_id
+  GROUP BY z.id
+)
 SELECT 
   z.*,
-  COUNT(DISTINCT zp.user_id) as user_count,
-  COUNT(DISTINCT zgp.group_id) as group_count,
-  ROUND((ST_Area(z.geom::geography) / 1000000)::numeric, 2) as area_km2
+  zm.user_count,
+  zm.group_count,
+  zm.area_km2,
+  creator.username as created_by_name
 FROM ng.geographic_access_zones z
-LEFT JOIN ng.zone_permissions zp ON z.id = zp.zone_id
-LEFT JOIN ng.zone_group_permissions zgp ON z.id = zgp.zone_id
-GROUP BY z.id
-ORDER BY z.name;
+JOIN zone_metrics zm ON z.id = zm.id
+LEFT JOIN ng.users creator ON z.created_by = creator.id
+WHERE ($1::text IS NULL OR 
+  z.name ILIKE '%' || $1 || '%' OR 
+  z.description ILIKE '%' || $1 || '%')
+ORDER BY 
+  CASE 
+    WHEN $4 = 'name' AND $5 = 'ASC' THEN z.name END ASC,
+  CASE 
+    WHEN $4 = 'name' AND $5 = 'DESC' THEN z.name END DESC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'ASC' THEN z.created_at END ASC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'DESC' THEN z.created_at END DESC,
+  CASE 
+    WHEN $4 = 'area' AND $5 = 'ASC' THEN zm.area_km2 END ASC,
+  CASE 
+    WHEN $4 = 'area' AND $5 = 'DESC' THEN zm.area_km2 END DESC,
+  CASE 
+    WHEN $4 = 'user_count' AND $5 = 'ASC' THEN zm.user_count END ASC,
+  CASE 
+    WHEN $4 = 'user_count' AND $5 = 'DESC' THEN zm.user_count END DESC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'ASC' THEN zm.group_count END ASC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'DESC' THEN zm.group_count END DESC
+LIMIT $2 OFFSET $3;
+`;
+
+export const COUNT_ZONES = `
+SELECT COUNT(*)
+FROM ng.geographic_access_zones z
+WHERE ($1::text IS NULL OR 
+  z.name ILIKE '%' || $1 || '%' OR 
+  z.description ILIKE '%' || $1 || '%');
 `;
 
 // Obter permissões de uma zona específica

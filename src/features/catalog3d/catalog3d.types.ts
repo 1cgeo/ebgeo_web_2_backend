@@ -33,24 +33,34 @@ export interface SearchResult {
   data: Catalog3D[];
 }
 
-export interface ModelPermissionInfo {
-  model_id: string;
-  model_name: string;
-  access_level: ModelAccessLevel;
-  created_at: Date;
-  created_by: string;
-  user_permissions: Array<{
-    id: string;
-    username: string;
-  }>;
-  group_permissions: Array<{
-    id: string;
-    name: string;
-  }>;
-}
-
 export interface UpdateModelPermissionsRequest {
   access_level?: ModelAccessLevel;
   userIds?: string[];
   groupIds?: string[];
+}
+
+export interface ModelPermissionsQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sort?: 'name' | 'created_at' | 'access_level' | 'user_count' | 'group_count';
+  order?: 'asc' | 'desc';
+}
+
+export interface ModelPermissionsSummary {
+  model_id: string;
+  model_name: string;
+  model_type: string;
+  access_level: 'public' | 'private';
+  data_carregamento: Date;
+  user_count: number;
+  group_count: number;
+  users: Array<{
+    id: string;
+    username: string;
+  }>;
+  groups: Array<{
+    id: string;
+    name: string;
+  }>;
 }

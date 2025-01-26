@@ -85,6 +85,14 @@ export interface UserQueryParams {
   search?: string;
   status?: 'active' | 'inactive' | 'all';
   role?: UserRole | 'all';
+  sort?:
+    | 'username'
+    | 'email'
+    | 'role'
+    | 'created_at'
+    | 'last_login'
+    | 'group_count';
+  order?: 'asc' | 'desc';
 }
 
 // Response types

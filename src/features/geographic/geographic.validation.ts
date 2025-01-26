@@ -136,3 +136,30 @@ export const updateZonePermissionsValidation: ValidationChain[] = [
       return true;
     }),
 ];
+
+export const listZonesValidation = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Página deve ser um número inteiro maior que 0')
+    .toInt(),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limite deve ser entre 1 e 100')
+    .toInt(),
+  query('search')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ min: 3 })
+    .withMessage('Termo de busca deve ter no mínimo 3 caracteres'),
+  query('sort')
+    .optional()
+    .isIn(['name', 'created_at', 'area', 'user_count', 'group_count'])
+    .withMessage('Campo de ordenação inválido'),
+  query('order')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('Direção de ordenação deve ser asc ou desc'),
+];

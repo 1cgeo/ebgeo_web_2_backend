@@ -53,3 +53,11 @@ export interface UpdateZonePermissionsRequest {
   userIds?: string[];
   groupIds?: string[];
 }
+
+export interface ZoneQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sort?: 'name' | 'created_at' | 'area' | 'user_count' | 'group_count';
+  order?: 'asc' | 'desc';
+}

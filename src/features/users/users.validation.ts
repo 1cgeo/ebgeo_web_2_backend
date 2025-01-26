@@ -7,24 +7,35 @@ export const listUsersValidation = [
     .isInt({ min: 1 })
     .withMessage('Página deve ser um número inteiro maior que 0')
     .toInt(),
-
   query('limit')
     .optional()
     .isInt({ min: 1, max: 100 })
     .withMessage('Limite deve ser entre 1 e 100')
     .toInt(),
-
   query('search').optional().isString().trim(),
-
   query('status')
     .optional()
     .isIn(['active', 'inactive', 'all'])
     .withMessage('Status deve ser active, inactive ou all'),
-
   query('role')
     .optional()
     .isIn([...Object.values(UserRole), 'all'])
     .withMessage('Role deve ser admin, user ou all'),
+  query('sort')
+    .optional()
+    .isIn([
+      'username',
+      'email',
+      'role',
+      'created_at',
+      'last_login',
+      'group_count',
+    ])
+    .withMessage('Campo de ordenação inválido'),
+  query('order')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('Direção de ordenação deve ser asc ou desc'),
 ];
 
 export const createUserValidation = [

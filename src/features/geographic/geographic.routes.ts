@@ -11,6 +11,7 @@ import {
   searchValidation,
   createZoneValidation,
   updateZonePermissionsValidation,
+  listZonesValidation,
 } from './geographic.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { authorize } from '../auth/auth.middleware.js';
@@ -26,8 +27,12 @@ router.get(
   asyncHandler(searchGeographicNames),
 );
 
-// Rotas de gerenciamento de zonas (admin only)
-router.get('/zones', authorize([UserRole.ADMIN]), asyncHandler(listZones));
+router.get(
+  '/zones',
+  authorize([UserRole.ADMIN]),
+  validateRequest(listZonesValidation),
+  asyncHandler(listZones),
+);
 
 router.get(
   '/zones/:zoneId/permissions',

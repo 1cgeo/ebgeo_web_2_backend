@@ -110,34 +110,79 @@ export const CHECK_MODEL_ACCESS = `
 
 // Query para listar permissões de um modelo
 export const LIST_MODEL_PERMISSIONS = `
+WITH model_metrics AS (
   SELECT 
-    c.id as model_id,
-    c.name as model_name,
-    c.access_level,
-    COALESCE(ARRAY(
-      SELECT json_build_object(
-          'id', u.id, 
-          'username', u.username,
-          'created_at', mp.created_at,
-          'created_by', u_created.username
-      )
-      FROM ng.model_permissions mp
-      LEFT JOIN ng.users u ON mp.user_id = u.id
-      LEFT JOIN ng.users u_created ON mp.created_by = u_created.id
-      WHERE mp.model_id = c.id
-    ), '{}') as user_permissions,
-    COALESCE(ARRAY(
-      SELECT json_build_object(
-          'id', g.id, 
-          'name', g.name,
-          'created_at', mgp.created_at,
-          'created_by', u.username
-      )
-      FROM ng.model_group_permissions mgp
-      LEFT JOIN ng.users u ON mgp.created_by = u.id
-      JOIN ng.groups g ON mgp.group_id = g.id
-      WHERE mgp.model_id = c.id
-    ), '{}') as group_permissions
-  FROM ng.catalogo_3d c
-  WHERE c.id = $1;
+    m.id,
+    COUNT(DISTINCT mp.user_id) as user_count,
+    COUNT(DISTINCT mgp.group_id) as group_count,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'id', u.id,
+          'username', u.username
+        )
+      ) FILTER (WHERE u.id IS NOT NULL),
+      '[]'
+    ) as users,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'id', g.id,
+          'name', g.name
+        )
+      ) FILTER (WHERE g.id IS NOT NULL),
+      '[]'
+    ) as groups
+  FROM ng.catalogo_3d m
+  LEFT JOIN ng.model_permissions mp ON m.id = mp.model_id
+  LEFT JOIN ng.users u ON mp.user_id = u.id
+  LEFT JOIN ng.model_group_permissions mgp ON m.id = mgp.model_id
+  LEFT JOIN ng.groups g ON mgp.group_id = g.id
+  GROUP BY m.id
+)
+SELECT 
+  m.id as model_id,
+  m.name as model_name,
+  m.type as model_type,
+  m.access_level,
+  m.data_carregamento,
+  mm.user_count,
+  mm.group_count,
+  mm.users,
+  mm.groups
+FROM ng.catalogo_3d m
+JOIN model_metrics mm ON m.id = mm.id
+WHERE ($1::text IS NULL OR 
+  m.name ILIKE '%' || $1 || '%' OR 
+  m.description ILIKE '%' || $1 || '%')
+ORDER BY 
+  CASE 
+    WHEN $4 = 'name' AND $5 = 'ASC' THEN m.name END ASC,
+  CASE 
+    WHEN $4 = 'name' AND $5 = 'DESC' THEN m.name END DESC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'ASC' THEN m.data_carregamento END ASC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'DESC' THEN m.data_carregamento END DESC,
+  CASE 
+    WHEN $4 = 'access_level' AND $5 = 'ASC' THEN m.access_level END ASC,
+  CASE 
+    WHEN $4 = 'access_level' AND $5 = 'DESC' THEN m.access_level END DESC,
+  CASE 
+    WHEN $4 = 'user_count' AND $5 = 'ASC' THEN mm.user_count END ASC,
+  CASE 
+    WHEN $4 = 'user_count' AND $5 = 'DESC' THEN mm.user_count END DESC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'ASC' THEN mm.group_count END ASC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'DESC' THEN mm.group_count END DESC
+LIMIT $2 OFFSET $3;
+`;
+
+export const COUNT_MODEL_PERMISSIONS = `
+SELECT COUNT(*)
+FROM ng.catalogo_3d m
+WHERE ($1::text IS NULL OR 
+  m.name ILIKE '%' || $1 || '%' OR 
+  m.description ILIKE '%' || $1 || '%');
 `;

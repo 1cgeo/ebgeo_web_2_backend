@@ -100,4 +100,88 @@ export const catalog3dSchemas: Record<string, OpenAPISchema> = {
       },
     },
   },
+  ModelPermissionsSummary: {
+    type: 'object',
+    required: ['model_id', 'model_name', 'model_type', 'access_level', 'data_carregamento'],
+    properties: {
+      model_id: {
+        type: 'string',
+        format: 'uuid'
+      },
+      model_name: {
+        type: 'string'
+      },
+      model_type: {
+        type: 'string'
+      },
+      access_level: {
+        type: 'string',
+        enum: ['public', 'private']
+      },
+      data_carregamento: {
+        type: 'string',
+        format: 'date-time'
+      },
+      user_count: {
+        type: 'integer'
+      },
+      group_count: {
+        type: 'integer'
+      },
+      users: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid'
+            },
+            username: {
+              type: 'string'
+            }
+          }
+        }
+      },
+      groups: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              format: 'uuid'
+            },
+            name: {
+              type: 'string'
+            }
+          }
+        }
+      }
+    }
+  },
+  ModelPermissionsListResponse: {
+    type: 'object',
+    required: ['models', 'total', 'page', 'limit'],
+    properties: {
+      models: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/ModelPermissionsSummary'
+        }
+      },
+      total: {
+        type: 'integer',
+        description: 'Total de modelos'
+      },
+      page: {
+        type: 'integer',
+        description: 'Página atual'
+      },
+      limit: {
+        type: 'integer',
+        description: 'Itens por página'
+      }
+    }
+  }
 };

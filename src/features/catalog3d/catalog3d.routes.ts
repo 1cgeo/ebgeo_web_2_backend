@@ -7,6 +7,7 @@ import {
 import {
   searchValidation,
   updatePermissionsValidation,
+  listModelPermissionsValidation,
 } from './catalog3d.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from '../auth/auth.types.js';
@@ -19,6 +20,13 @@ router.get(
   '/catalogo3d',
   validateRequest(searchValidation),
   asyncHandler(searchCatalog3D),
+);
+
+router.get(
+  '/permissions',
+  authorize([UserRole.ADMIN]),
+  validateRequest(listModelPermissionsValidation),
+  asyncHandler(listModelPermissions),
 );
 
 // Rotas de gerenciamento de permissões (apenas admin)

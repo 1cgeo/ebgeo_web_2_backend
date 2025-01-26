@@ -49,7 +49,51 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *
+ * 
+ * /api/catalog3d/permissions:
+ *   get:
+ *     tags: [Catálogo 3D]
+ *     summary: Lista permissões de todos os modelos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           minLength: 3
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [name, created_at, access_level, user_count, group_count]
+ *           default: name
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *     responses:
+ *       200:
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ModelPermissionsListResponse'
+ * 
  * /api/catalog3d/permissions/{modelId}:
  *   get:
  *     tags:
@@ -113,4 +157,4 @@
  *         description: Modelo não encontrado
  */
 
-export {};
+export { };

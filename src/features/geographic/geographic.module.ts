@@ -7,6 +7,7 @@ import {
   GeographicName,
   CreateZoneRequest,
   UpdateZonePermissionsRequest,
+  ZoneQueryParams,
 } from './geographic.types.js';
 import * as queries from './geographic.queries.js';
 import { createAudit } from '../../common/config/audit.js';
@@ -57,29 +58,59 @@ export async function searchGeographicNames(req: Request, res: Response) {
   }
 }
 
-export async function listZones(req: Request, res: Response) {
-  if (!req.user) {
-    throw ApiError.unauthorized('Usuário não autenticado');
-  }
+export async function listZones(
+  req: Request<any, any, any, ZoneQueryParams>,
+  res: Response,
+) {
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sort = 'name',
+    order = 'asc',
+  } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
+  const searchTerm = search === undefined ? null : search;
 
   try {
-    const zones = await db.any(queries.LIST_ZONES);
+    const validatedSortDirection = order.toUpperCase();
 
-    logger.logAccess('Zones listed', {
-      userId: req.user.userId,
+    const [zones, total] = await Promise.all([
+      db.any(queries.LIST_ZONES, [
+        searchTerm,
+        limit,
+        offset,
+        sort,
+        validatedSortDirection,
+      ]),
+      db.one(queries.COUNT_ZONES, [searchTerm]),
+    ]);
+
+    logger.logAccess('Listed geographic zones', {
+      userId: req.user?.userId,
       additionalInfo: {
-        zonesCount: zones.length,
+        search,
+        page,
+        limit,
+        sort,
+        order,
+        zoneCount: zones.length,
       },
     });
 
-    return res.json(zones);
+    return res.json({
+      zones,
+      total: Number(total.count),
+      page: Number(page),
+      limit: Number(limit),
+    });
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
-      userId: req.user.userId,
-      endpoint: '/geographic/zones',
+      userId: req.user?.userId,
+      additionalInfo: { operation: 'list_zones' },
     });
-    throw ApiError.internal('Erro ao listar zonas geográficas');
+    throw error;
   }
 }
 

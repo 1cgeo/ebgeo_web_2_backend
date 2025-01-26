@@ -228,7 +228,6 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       },
     },
   },
-
   UpdateProfileDTO: {
     type: 'object',
     required: ['email'],
@@ -240,7 +239,35 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       },
     },
   },
-
+  UserWithGroups: {
+    allOf: [
+      { $ref: '#/components/schemas/BaseUser' },
+      {
+        type: 'object',
+        required: ['group_count', 'groups'],
+        properties: {
+          group_count: {
+            type: 'integer'
+          },
+          groups: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  format: 'uuid'
+                },
+                name: {
+                  type: 'string'
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
   UserListResponse: {
     type: 'object',
     required: ['users', 'total', 'page', 'limit'],
@@ -248,21 +275,21 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       users: {
         type: 'array',
         items: {
-          $ref: '#/components/schemas/BaseUser',
-        },
+          $ref: '#/components/schemas/UserWithGroups'
+        }
       },
       total: {
         type: 'integer',
-        description: 'Total de usuários',
+        description: 'Total de usuários'
       },
       page: {
         type: 'integer',
-        description: 'Página atual',
+        description: 'Página atual'
       },
       limit: {
         type: 'integer',
-        description: 'Itens por página',
-      },
-    },
-  },
+        description: 'Itens por página'
+      }
+    }
+  }
 };

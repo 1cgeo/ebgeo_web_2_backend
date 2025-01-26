@@ -2,9 +2,16 @@ export const LIST_USERS = `
 WITH user_metrics AS (
   SELECT 
     u.id,
-    COUNT(DISTINCT ug.group_id) as group_count
+    COUNT(DISTINCT ug.group_id) as group_count,
+    json_agg(
+      DISTINCT jsonb_build_object(
+        'id', g.id,
+        'name', g.name
+      )
+    ) FILTER (WHERE g.id IS NOT NULL) as groups
   FROM ng.users u
   LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
+  LEFT JOIN ng.groups g ON ug.group_id = g.id
   GROUP BY u.id
 )
 SELECT 
@@ -16,7 +23,8 @@ SELECT
   u.last_login,
   u.created_at,
   u.updated_at,
-  COALESCE(um.group_count, 0) as group_count
+  COALESCE(um.group_count, 0) as group_count,
+  COALESCE(um.groups, '[]') as groups
 FROM ng.users u
 LEFT JOIN user_metrics um ON u.id = um.id
 WHERE 
@@ -26,8 +34,32 @@ WHERE
   )
   AND (COALESCE($2, '') = '' OR u.role = $2)
   AND (COALESCE($3::boolean, NULL) IS NULL OR u.is_active = $3)
-ORDER BY u.created_at DESC
-LIMIT $4 OFFSET $5;
+ORDER BY 
+  CASE 
+    WHEN $4 = 'username' AND $5 = 'ASC' THEN u.username END ASC,
+  CASE 
+    WHEN $4 = 'username' AND $5 = 'DESC' THEN u.username END DESC,
+  CASE 
+    WHEN $4 = 'email' AND $5 = 'ASC' THEN u.email END ASC,
+  CASE 
+    WHEN $4 = 'email' AND $5 = 'DESC' THEN u.email END DESC,
+  CASE 
+    WHEN $4 = 'role' AND $5 = 'ASC' THEN u.role END ASC,
+  CASE 
+    WHEN $4 = 'role' AND $5 = 'DESC' THEN u.role END DESC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'ASC' THEN u.created_at END ASC,
+  CASE 
+    WHEN $4 = 'created_at' AND $5 = 'DESC' THEN u.created_at END DESC,
+  CASE 
+    WHEN $4 = 'last_login' AND $5 = 'ASC' THEN u.last_login END ASC,
+  CASE 
+    WHEN $4 = 'last_login' AND $5 = 'DESC' THEN u.last_login END DESC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'ASC' THEN um.group_count END ASC,
+  CASE 
+    WHEN $4 = 'group_count' AND $5 = 'DESC' THEN um.group_count END DESC
+LIMIT $6 OFFSET $7;
 `;
 
 export const COUNT_USERS = `
