@@ -49,7 +49,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- * 
+ *
  * /api/catalog3d/permissions:
  *   get:
  *     tags: [Catálogo 3D]
@@ -93,7 +93,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ModelPermissionsListResponse'
- * 
+ *
  * /api/catalog3d/permissions/{modelId}:
  *   get:
  *     tags:
@@ -157,4 +157,4 @@
  *         description: Modelo não encontrado
  */
 
-export { };
+export {};

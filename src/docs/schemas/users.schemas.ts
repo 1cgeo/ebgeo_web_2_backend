@@ -247,7 +247,7 @@ export const userSchemas: Record<string, OpenAPISchema> = {
         required: ['group_count', 'groups'],
         properties: {
           group_count: {
-            type: 'integer'
+            type: 'integer',
           },
           groups: {
             type: 'array',
@@ -256,17 +256,17 @@ export const userSchemas: Record<string, OpenAPISchema> = {
               properties: {
                 id: {
                   type: 'string',
-                  format: 'uuid'
+                  format: 'uuid',
                 },
                 name: {
-                  type: 'string'
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
   },
   UserListResponse: {
     type: 'object',
@@ -275,21 +275,21 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       users: {
         type: 'array',
         items: {
-          $ref: '#/components/schemas/UserWithGroups'
-        }
+          $ref: '#/components/schemas/UserWithGroups',
+        },
       },
       total: {
         type: 'integer',
-        description: 'Total de usuários'
+        description: 'Total de usuários',
       },
       page: {
         type: 'integer',
-        description: 'Página atual'
+        description: 'Página atual',
       },
       limit: {
         type: 'integer',
-        description: 'Itens por página'
-      }
-    }
-  }
+        description: 'Itens por página',
+      },
+    },
+  },
 };

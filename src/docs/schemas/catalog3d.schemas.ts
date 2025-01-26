@@ -102,31 +102,37 @@ export const catalog3dSchemas: Record<string, OpenAPISchema> = {
   },
   ModelPermissionsSummary: {
     type: 'object',
-    required: ['model_id', 'model_name', 'model_type', 'access_level', 'data_carregamento'],
+    required: [
+      'model_id',
+      'model_name',
+      'model_type',
+      'access_level',
+      'data_carregamento',
+    ],
     properties: {
       model_id: {
         type: 'string',
-        format: 'uuid'
+        format: 'uuid',
       },
       model_name: {
-        type: 'string'
+        type: 'string',
       },
       model_type: {
-        type: 'string'
+        type: 'string',
       },
       access_level: {
         type: 'string',
-        enum: ['public', 'private']
+        enum: ['public', 'private'],
       },
       data_carregamento: {
         type: 'string',
-        format: 'date-time'
+        format: 'date-time',
       },
       user_count: {
-        type: 'integer'
+        type: 'integer',
       },
       group_count: {
-        type: 'integer'
+        type: 'integer',
       },
       users: {
         type: 'array',
@@ -135,13 +141,13 @@ export const catalog3dSchemas: Record<string, OpenAPISchema> = {
           properties: {
             id: {
               type: 'string',
-              format: 'uuid'
+              format: 'uuid',
             },
             username: {
-              type: 'string'
-            }
-          }
-        }
+              type: 'string',
+            },
+          },
+        },
       },
       groups: {
         type: 'array',
@@ -150,15 +156,15 @@ export const catalog3dSchemas: Record<string, OpenAPISchema> = {
           properties: {
             id: {
               type: 'string',
-              format: 'uuid'
+              format: 'uuid',
             },
             name: {
-              type: 'string'
-            }
-          }
-        }
-      }
-    }
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
   },
   ModelPermissionsListResponse: {
     type: 'object',
@@ -167,21 +173,21 @@ export const catalog3dSchemas: Record<string, OpenAPISchema> = {
       models: {
         type: 'array',
         items: {
-          $ref: '#/components/schemas/ModelPermissionsSummary'
-        }
+          $ref: '#/components/schemas/ModelPermissionsSummary',
+        },
       },
       total: {
         type: 'integer',
-        description: 'Total de modelos'
+        description: 'Total de modelos',
       },
       page: {
         type: 'integer',
-        description: 'Página atual'
+        description: 'Página atual',
       },
       limit: {
         type: 'integer',
-        description: 'Itens por página'
-      }
-    }
-  }
+        description: 'Itens por página',
+      },
+    },
+  },
 };
