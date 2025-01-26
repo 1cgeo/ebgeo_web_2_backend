@@ -7,13 +7,19 @@ import * as queries from './groups.queries.js';
 import { createAudit } from '../../common/config/audit.js';
 
 export async function listGroups(req: Request, res: Response) {
-  const { page = 1, limit = 10, search } = req.query;
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    sort = 'name',
+    order = 'asc',
+  } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
   const searchTerm = search === undefined ? null : search;
 
   try {
     const [groups, total] = await Promise.all([
-      db.any(queries.LIST_GROUPS, [searchTerm, limit, offset]),
+      db.any(queries.LIST_GROUPS, [searchTerm, limit, offset, sort, order]),
       db.one(queries.COUNT_GROUPS, [searchTerm]),
     ]);
 
@@ -23,6 +29,8 @@ export async function listGroups(req: Request, res: Response) {
         search,
         page,
         limit,
+        sort,
+        order,
         groupCount: groups.length,
       },
     });
@@ -328,6 +336,41 @@ export async function deleteGroup(req: Request, res: Response) {
         },
       );
     }
+    throw error;
+  }
+}
+
+export async function getGroupDetails(req: Request, res: Response) {
+  const { id } = req.params;
+
+  try {
+    const group = await db.oneOrNone(queries.GET_GROUP, [id]);
+
+    if (!group) {
+      throw ApiError.notFound('Grupo não encontrado');
+    }
+
+    logger.logAccess('Group details retrieved', {
+      userId: req.user?.userId,
+      additionalInfo: {
+        groupId: id,
+        modelPermissions: group.model_permissions?.length || 0,
+        zonePermissions: group.zone_permissions?.length || 0,
+      },
+    });
+
+    return res.json(group);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+
+    logger.logError(error instanceof Error ? error : new Error(String(error)), {
+      category: LogCategory.ADMIN,
+      userId: req.user?.userId,
+      additionalInfo: {
+        operation: 'get_group_details',
+        groupId: id,
+      },
+    });
     throw error;
   }
 }

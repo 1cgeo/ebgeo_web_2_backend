@@ -97,7 +97,7 @@ describe('Environment Variables Validation', () => {
 
   describe('validateRateLimit', () => {
     it('should validate correct rate limit values', () => {
-      process.env.RATE_LIMIT_WINDOW_MS = '900000';
+      process.env.RATE_LIMIT_WINDOW_MS = '60000';
       process.env.RATE_LIMIT_MAX_REQUESTS = '100';
 
       expect(() => validators.validateRateLimit()).not.toThrow();

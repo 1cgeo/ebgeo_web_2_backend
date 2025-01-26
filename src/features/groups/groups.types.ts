@@ -9,9 +9,20 @@ export interface Group {
 
 export interface GroupDetails extends Group {
   memberCount: number;
-  modelPermissions: number;
-  zonePermissions: number;
+  modelPermissionsCount: number;
+  zonePermissionsCount: number;
   members: GroupMember[];
+  modelPermissions?: {
+    id: string;
+    name: string;
+    type: string;
+    access_level: string;
+  }[];
+  zonePermissions?: {
+    id: string;
+    name: string;
+    area_km2: number;
+  }[];
 }
 
 export interface GroupMember {
@@ -37,4 +48,12 @@ export interface GroupQueryParams {
   page?: number;
   limit?: number;
   search?: string;
+  sort?:
+    | 'name'
+    | 'created_at'
+    | 'updated_at'
+    | 'member_count'
+    | 'model_permissions_count'
+    | 'zone_permissions_count';
+  order?: 'asc' | 'desc';
 }

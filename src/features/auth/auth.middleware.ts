@@ -68,7 +68,8 @@ export const authenticateRequest = async (
       // Refresh token se estiver próximo de expirar
       const tokenExp = (decoded as any).exp * 1000;
       if (tokenExp - Date.now() < 5 * 60 * 1000) {
-        const newToken = generateToken(decoded);
+        const { exp: _exp, iat: _iat, ...payloadWithoutExp } = decoded as any;
+        const newToken = generateToken(payloadWithoutExp);
         res.cookie('token', newToken, {
           httpOnly: true,
           secure: cookieConfig.secure,

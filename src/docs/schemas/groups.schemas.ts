@@ -75,18 +75,56 @@ export const groupSchemas: Record<string, OpenAPISchema> = {
     },
   },
 
-  GroupDetails: {
+  ModelPermission: {
+    type: 'object',
+    required: ['id', 'name', 'type', 'access_level'],
+    properties: {
+      id: {
+        type: 'string',
+        format: 'uuid',
+      },
+      name: {
+        type: 'string',
+      },
+      type: {
+        type: 'string',
+      },
+      access_level: {
+        type: 'string',
+        enum: ['public', 'private'],
+      },
+    },
+  },
+
+  ZonePermission: {
+    type: 'object',
+    required: ['id', 'name', 'area_km2'],
+    properties: {
+      id: {
+        type: 'string',
+        format: 'uuid',
+      },
+      name: {
+        type: 'string',
+      },
+      area_km2: {
+        type: 'number',
+        format: 'float',
+      },
+    },
+  },
+
+  GroupSummary: {
     type: 'object',
     required: [
       'id',
       'name',
-      'createdBy',
-      'createdAt',
-      'updatedAt',
-      'memberCount',
-      'modelPermissions',
-      'zonePermissions',
-      'members',
+      'created_by',
+      'created_at',
+      'updated_at',
+      'member_count',
+      'model_permissions_count',
+      'zone_permissions_count',
     ],
     properties: {
       id: {
@@ -99,34 +137,94 @@ export const groupSchemas: Record<string, OpenAPISchema> = {
       description: {
         type: 'string',
       },
-      createdBy: {
+      created_by: {
         type: 'string',
         format: 'uuid',
       },
-      createdByName: {
+      created_by_name: {
         type: 'string',
       },
-      createdAt: {
-        type: 'string',
-        format: 'date-time',
-      },
-      updatedAt: {
+      created_at: {
         type: 'string',
         format: 'date-time',
       },
-      memberCount: {
+      updated_at: {
+        type: 'string',
+        format: 'date-time',
+      },
+      member_count: {
         type: 'integer',
       },
-      modelPermissions: {
+      model_permissions_count: {
         type: 'integer',
       },
-      zonePermissions: {
+      zone_permissions_count: {
         type: 'integer',
       },
       members: {
         type: 'array',
         items: {
           $ref: '#/components/schemas/GroupMember',
+        },
+      },
+    },
+  },
+
+  GroupDetails: {
+    type: 'object',
+    required: [
+      'id',
+      'name',
+      'created_by',
+      'created_at',
+      'updated_at',
+      'member_count',
+    ],
+    properties: {
+      id: {
+        type: 'string',
+        format: 'uuid',
+      },
+      name: {
+        type: 'string',
+      },
+      description: {
+        type: 'string',
+      },
+      created_by: {
+        type: 'string',
+        format: 'uuid',
+      },
+      created_by_name: {
+        type: 'string',
+      },
+      created_at: {
+        type: 'string',
+        format: 'date-time',
+      },
+      updated_at: {
+        type: 'string',
+        format: 'date-time',
+      },
+      member_count: {
+        type: 'integer',
+      },
+      members: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/GroupMember',
+        },
+      },
+      model_permissions: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/ModelPermission',
+        },
+      },
+      zone_permissions: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/ZonePermission',
         },
       },
     },
@@ -139,7 +237,7 @@ export const groupSchemas: Record<string, OpenAPISchema> = {
       groups: {
         type: 'array',
         items: {
-          $ref: '#/components/schemas/GroupDetails',
+          $ref: '#/components/schemas/GroupSummary',
         },
       },
       total: {

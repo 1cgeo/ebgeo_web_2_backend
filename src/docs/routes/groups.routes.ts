@@ -30,6 +30,20 @@
  *           type: string
  *           minLength: 3
  *         description: Termo para buscar em nome e descrição
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [name, created_at, updated_at, member_count, model_permissions_count, zone_permissions_count]
+ *           default: name
+ *         description: Campo para ordenação
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *         description: Direção da ordenação
  *     responses:
  *       200:
  *         description: Lista de grupos
@@ -41,6 +55,36 @@
  *         $ref: '#/components/responses/Unauthorized'
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *
+ * /api/groups/{id}:
+ *   get:
+ *     tags:
+ *       - Grupos
+ *     summary: Obtém detalhes do grupo
+ *     description: Retorna informações detalhadas de um grupo específico com membros e permissões
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID do grupo
+ *     responses:
+ *       200:
+ *         description: Detalhes do grupo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/GroupDetails'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  *
  *   post:
  *     tags:
@@ -71,7 +115,6 @@
  *       409:
  *         $ref: '#/components/responses/Conflict'
  *
- * /api/groups/{id}:
  *   put:
  *     tags:
  *       - Grupos

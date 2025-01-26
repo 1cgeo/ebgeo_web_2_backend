@@ -17,6 +17,21 @@ export const listGroupsValidation = [
     .trim()
     .isLength({ min: 3 })
     .withMessage('Termo de busca deve ter no mínimo 3 caracteres'),
+  query('sort')
+    .optional()
+    .isIn([
+      'name',
+      'created_at',
+      'updated_at',
+      'member_count',
+      'model_permissions_count',
+      'zone_permissions_count',
+    ])
+    .withMessage('Campo de ordenação inválido'),
+  query('order')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('Direção de ordenação deve ser asc ou desc'),
 ];
 
 export const createGroupValidation = [
