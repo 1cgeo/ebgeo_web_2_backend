@@ -45,22 +45,16 @@
  *     tags:
  *       - Administração
  *     summary: Consulta logs do sistema
- *     description: Busca logs do sistema com filtros por data, nível, categoria e texto
+ *     description: Busca logs do sistema com filtros por categoria e nível
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: startDate
+ *         name: category
  *         schema:
  *           type: string
- *           format: date-time
- *         description: Data inicial para filtro
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *         description: Data final para filtro
+ *           enum: ['AUTH', 'API', 'DB', 'SECURITY', 'PERFORMANCE', 'SYSTEM', 'ACCESS', 'ADMIN']
+ *         description: Categoria do log para filtrar
  *       - in: query
  *         name: level
  *         schema:
@@ -68,31 +62,13 @@
  *           enum: ['ERROR', 'WARN', 'INFO', 'DEBUG']
  *         description: Nível do log
  *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *           enum: ['AUTH', 'API', 'DB', 'SECURITY', 'PERFORMANCE', 'SYSTEM', 'ACCESS', 'ADMIN']
- *         description: Categoria do log
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Termo para busca no conteúdo dos logs
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           minimum: 1
- *           default: 1
- *         description: Número da página
- *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           minimum: 1
- *           maximum: 100
- *           default: 20
- *         description: Registros por página
+ *           maximum: 1000
+ *           default: 100
+ *         description: Quantidade máxima de logs a retornar
  *     responses:
  *       200:
  *         description: Logs do sistema
@@ -101,7 +77,7 @@
  *             schema:
  *               $ref: '#/components/schemas/LogResponse'
  *       400:
- *         description: Parâmetros de consulta inválidos
+ *         description: Parâmetros inválidos
  *       401:
  *         description: Não autorizado
  *       403:
