@@ -118,7 +118,16 @@ export async function createUser(
   req: Request<any, any, CreateUserDTO>,
   res: Response,
 ) {
-  const { username, email, password, role, groupIds } = req.body;
+  const {
+    username,
+    email,
+    password,
+    role,
+    nome_completo,
+    nome_guerra,
+    organizacao_militar,
+    groupIds,
+  } = req.body;
 
   try {
     if (!req.user?.userId) {
@@ -164,6 +173,9 @@ export async function createUser(
       const newUser = await t.one(queries.CREATE_USER, [
         username,
         email,
+        nome_completo || null,
+        nome_guerra || null,
+        organizacao_militar || null,
         hashedPassword,
         role,
         req.user?.userId,
@@ -229,7 +241,14 @@ export async function updateUser(
   res: Response,
 ) {
   const { id } = req.params;
-  const { email, role, isActive } = req.body;
+  const {
+    email,
+    role,
+    isActive,
+    nome_completo,
+    nome_guerra,
+    organizacao_militar,
+  } = req.body;
 
   try {
     const result = await db.tx(async t => {
@@ -259,6 +278,9 @@ export async function updateUser(
       const updatedUser = await t.one(queries.UPDATE_USER, [
         id,
         email,
+        nome_completo,
+        nome_guerra,
+        organizacao_militar,
         role,
         isActive,
       ]);
@@ -278,6 +300,27 @@ export async function updateUser(
                   ? {
                       old: user.email,
                       new: email,
+                    }
+                  : undefined,
+              nome_completo:
+                nome_completo !== undefined
+                  ? {
+                      old: user.nome_completo,
+                      new: nome_completo,
+                    }
+                  : undefined,
+              nome_guerra:
+                nome_guerra !== undefined
+                  ? {
+                      old: user.nome_guerra,
+                      new: nome_guerra,
+                    }
+                  : undefined,
+              organizacao_militar:
+                organizacao_militar !== undefined
+                  ? {
+                      old: user.organizacao_militar,
+                      new: organizacao_militar,
                     }
                   : undefined,
               role:
@@ -481,7 +524,7 @@ export async function updateProfile(
   }
   const userId = req.user.userId;
 
-  const { email } = req.body;
+  const { email, nome_completo, nome_guerra, organizacao_militar } = req.body;
 
   try {
     await db.tx(async t => {
@@ -519,6 +562,27 @@ export async function updateProfile(
                       new: email,
                     }
                   : undefined,
+              nome_completo:
+                nome_completo !== undefined
+                  ? {
+                      old: user.nome_completo,
+                      new: nome_completo,
+                    }
+                  : undefined,
+              nome_guerra:
+                nome_guerra !== undefined
+                  ? {
+                      old: user.nome_guerra,
+                      new: nome_guerra,
+                    }
+                  : undefined,
+              organizacao_militar:
+                organizacao_militar !== undefined
+                  ? {
+                      old: user.organizacao_militar,
+                      new: organizacao_militar,
+                    }
+                  : undefined,
             },
             changedBy: 'self',
           },
@@ -529,6 +593,9 @@ export async function updateProfile(
       await t.one(queries.UPDATE_USER, [
         userId,
         email,
+        nome_completo,
+        nome_guerra,
+        organizacao_militar,
         null, // role não pode ser alterado
         null, // isActive não pode ser alterado
       ]);

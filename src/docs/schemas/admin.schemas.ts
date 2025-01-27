@@ -136,13 +136,13 @@ export const adminSchemas: Record<string, OpenAPISchema> = {
   LogEntry: {
     type: 'object',
     properties: {
-      timestamp: { 
-        type: 'string', 
-        format: 'date-time' 
+      timestamp: {
+        type: 'string',
+        format: 'date-time',
       },
       level: {
         type: 'string',
-        enum: ['ERROR', 'WARN', 'INFO', 'DEBUG']
+        enum: ['ERROR', 'WARN', 'INFO', 'DEBUG'],
       },
       category: {
         type: 'string',
@@ -154,15 +154,15 @@ export const adminSchemas: Record<string, OpenAPISchema> = {
           'PERFORMANCE',
           'SYSTEM',
           'ACCESS',
-          'ADMIN'
-        ]
+          'ADMIN',
+        ],
       },
       message: { type: 'string' },
       details: {
         type: 'object',
-        additionalProperties: true
-      }
-    }
+        additionalProperties: true,
+      },
+    },
   },
 
   LogResponse: {
@@ -171,16 +171,16 @@ export const adminSchemas: Record<string, OpenAPISchema> = {
       logs: {
         type: 'array',
         items: {
-          $ref: '#/components/schemas/LogEntry'
-        }
+          $ref: '#/components/schemas/LogEntry',
+        },
       },
       total: { type: 'integer' },
       limit: { type: 'integer' },
       categories: {
         type: 'array',
-        items: { type: 'string' }
-      }
-    }
+        items: { type: 'string' },
+      },
+    },
   },
 
   AuditEntry: {

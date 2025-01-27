@@ -1,66 +1,51 @@
 export const LIST_USERS = `
-WITH user_metrics AS (
-  SELECT 
-    u.id,
-    COUNT(DISTINCT ug.group_id) as group_count,
-    json_agg(
-      DISTINCT jsonb_build_object(
-        'id', g.id,
-        'name', g.name
-      )
-    ) FILTER (WHERE g.id IS NOT NULL) as groups
-  FROM ng.users u
-  LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
-  LEFT JOIN ng.groups g ON ug.group_id = g.id
-  GROUP BY u.id
-)
-SELECT 
-  u.id, 
-  u.username, 
-  u.email, 
-  u.role, 
-  u.is_active,
-  u.last_login,
-  u.created_at,
-  u.updated_at,
-  COALESCE(um.group_count, 0) as group_count,
-  COALESCE(um.groups, '[]') as groups
-FROM ng.users u
-LEFT JOIN user_metrics um ON u.id = um.id
-WHERE 
-  (COALESCE($1, '') = '' OR 
-    u.username ILIKE '%' || COALESCE($1, '') || '%' OR 
-    u.email ILIKE '%' || COALESCE($1, '') || '%'
+  WITH user_metrics AS (
+    SELECT 
+      u.id,
+      COUNT(DISTINCT ug.group_id) as group_count
+    FROM ng.users u
+    LEFT JOIN ng.user_groups ug ON u.id = ug.user_id
+    GROUP BY u.id
   )
-  AND (COALESCE($2, '') = '' OR u.role = $2)
-  AND (COALESCE($3::boolean, NULL) IS NULL OR u.is_active = $3)
-ORDER BY 
-  CASE 
-    WHEN $4 = 'username' AND $5 = 'ASC' THEN u.username END ASC,
-  CASE 
-    WHEN $4 = 'username' AND $5 = 'DESC' THEN u.username END DESC,
-  CASE 
-    WHEN $4 = 'email' AND $5 = 'ASC' THEN u.email END ASC,
-  CASE 
-    WHEN $4 = 'email' AND $5 = 'DESC' THEN u.email END DESC,
-  CASE 
-    WHEN $4 = 'role' AND $5 = 'ASC' THEN u.role END ASC,
-  CASE 
-    WHEN $4 = 'role' AND $5 = 'DESC' THEN u.role END DESC,
-  CASE 
-    WHEN $4 = 'created_at' AND $5 = 'ASC' THEN u.created_at END ASC,
-  CASE 
-    WHEN $4 = 'created_at' AND $5 = 'DESC' THEN u.created_at END DESC,
-  CASE 
-    WHEN $4 = 'last_login' AND $5 = 'ASC' THEN u.last_login END ASC,
-  CASE 
-    WHEN $4 = 'last_login' AND $5 = 'DESC' THEN u.last_login END DESC,
-  CASE 
-    WHEN $4 = 'group_count' AND $5 = 'ASC' THEN um.group_count END ASC,
-  CASE 
-    WHEN $4 = 'group_count' AND $5 = 'DESC' THEN um.group_count END DESC
-LIMIT $6 OFFSET $7;
-`;
+  SELECT 
+    u.id, 
+    u.username, 
+    u.email,
+    u.nome_completo,
+    u.nome_guerra,
+    u.organizacao_militar, 
+    u.role, 
+    u.is_active,
+    u.last_login,
+    u.created_at,
+    u.updated_at,
+    COALESCE(um.group_count, 0) as group_count
+  FROM ng.users u
+  LEFT JOIN user_metrics um ON u.id = um.id
+  WHERE 
+    (COALESCE($1, '') = '' OR 
+      u.username ILIKE '%' || COALESCE($1, '') || '%' OR 
+      u.email ILIKE '%' || COALESCE($1, '') || '%' OR
+      u.nome_completo ILIKE '%' || COALESCE($1, '') || '%' OR
+      u.nome_guerra ILIKE '%' || COALESCE($1, '') || '%' OR
+      u.organizacao_militar ILIKE '%' || COALESCE($1, '') || '%'
+    )
+    AND (COALESCE($2, '') = '' OR u.role = $2)
+    AND (COALESCE($3::boolean, NULL) IS NULL OR u.is_active = $3)
+  ORDER BY 
+    CASE 
+      WHEN $4 = 'username' THEN u.username
+      WHEN $4 = 'email' THEN u.email
+      WHEN $4 = 'nome_completo' THEN u.nome_completo
+      WHEN $4 = 'nome_guerra' THEN u.nome_guerra
+      WHEN $4 = 'organizacao_militar' THEN u.organizacao_militar
+      WHEN $4 = 'role' THEN u.role
+      WHEN $4 = 'created_at' THEN u.created_at::text
+      WHEN $4 = 'last_login' THEN u.last_login::text
+      WHEN $4 = 'group_count' THEN um.group_count::text
+      ELSE u.username
+    END $5:raw
+  LIMIT $6 OFFSET $7;`;
 
 export const COUNT_USERS = `
   SELECT COUNT(*)
@@ -167,6 +152,9 @@ export const CREATE_USER = `
   INSERT INTO ng.users (
     username, 
     email, 
+    nome_completo,
+    nome_guerra,
+    organizacao_militar, 
     password, 
     role, 
     is_active,
@@ -174,7 +162,7 @@ export const CREATE_USER = `
     created_at, 
     updated_at
   ) VALUES (
-    $1, $2, $3, $4, true, $5,
+    $1, $2, $3, $4, $5, $6, $7, true, $8,
     CURRENT_TIMESTAMP, 
     CURRENT_TIMESTAMP
   ) RETURNING id;
@@ -184,11 +172,14 @@ export const UPDATE_USER = `
   UPDATE ng.users 
   SET 
     email = COALESCE($2, email),
-    role = COALESCE($3, role),
-    is_active = COALESCE($4, is_active),
+    nome_completo = COALESCE($3, nome_completo),
+    nome_guerra = COALESCE($4, nome_guerra),
+    organizacao_militar = COALESCE($5, organizacao_militar),
+    role = COALESCE($6, role),
+    is_active = COALESCE($7, is_active),
     updated_at = CURRENT_TIMESTAMP
   WHERE id = $1
-  RETURNING id, username, email, role, is_active;
+  RETURNING id, username, email, nome_completo, nome_guerra, organizacao_militar, role, is_active;
 `;
 
 export const UPDATE_PASSWORD = `

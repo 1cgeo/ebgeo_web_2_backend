@@ -28,7 +28,7 @@
  *         name: search
  *         schema:
  *           type: string
- *         description: Busca por username ou email
+ *         description: Busca por username, email, nome completo, nome de guerra ou organização militar
  *       - in: query
  *         name: status
  *         schema:
@@ -45,7 +45,7 @@
  *         name: sort
  *         schema:
  *           type: string
- *           enum: [username, email, role, created_at, last_login, group_count]
+ *           enum: [username, email, nome_completo, nome_guerra, organizacao_militar, role, created_at, last_login, group_count]
  *           default: username
  *       - in: query
  *         name: order

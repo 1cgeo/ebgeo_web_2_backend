@@ -27,6 +27,24 @@ export const userSchemas: Record<string, OpenAPISchema> = {
         description: 'Email do usuário',
         example: 'john@example.com',
       },
+      nome_completo: {
+        type: 'string',
+        description: 'Nome completo do usuário',
+        example: 'João da Silva Santos',
+        maxLength: 255,
+      },
+      nome_guerra: {
+        type: 'string',
+        description: 'Nome de guerra do usuário',
+        example: 'SILVA',
+        maxLength: 50,
+      },
+      organizacao_militar: {
+        type: 'string',
+        description: 'Organização militar do usuário',
+        example: '1º BIS',
+        maxLength: 255,
+      },
       role: {
         $ref: '#/components/schemas/Role',
       },
@@ -172,6 +190,21 @@ export const userSchemas: Record<string, OpenAPISchema> = {
         description: 'Email do usuário',
         example: 'john@example.com',
       },
+      nome_completo: {
+        type: 'string',
+        maxLength: 255,
+        description: 'Nome completo do usuário',
+      },
+      nome_guerra: {
+        type: 'string',
+        maxLength: 50,
+        description: 'Nome de guerra do usuário',
+      },
+      organizacao_militar: {
+        type: 'string',
+        maxLength: 255,
+        description: 'Organização militar do usuário',
+      },
       password: {
         type: 'string',
         format: 'password',
@@ -200,6 +233,18 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       email: {
         type: 'string',
         format: 'email',
+        maxLength: 255,
+      },
+      nome_completo: {
+        type: 'string',
+        maxLength: 255,
+      },
+      nome_guerra: {
+        type: 'string',
+        maxLength: 50,
+      },
+      organizacao_militar: {
+        type: 'string',
         maxLength: 255,
       },
       role: {
@@ -235,6 +280,18 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       email: {
         type: 'string',
         format: 'email',
+        maxLength: 255,
+      },
+      nome_completo: {
+        type: 'string',
+        maxLength: 255,
+      },
+      nome_guerra: {
+        type: 'string',
+        maxLength: 50,
+      },
+      organizacao_militar: {
+        type: 'string',
         maxLength: 255,
       },
     },

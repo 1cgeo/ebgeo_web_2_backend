@@ -4,6 +4,9 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  nome_completo?: string;
+  nome_guerra?: string;
+  organizacao_militar?: string;
   role: UserRole;
   isActive: boolean;
   lastLogin?: Date;
@@ -58,13 +61,18 @@ export interface UserPermissions {
 export interface CreateUserDTO {
   username: string;
   email: string;
+  nome_completo?: string;
+  nome_guerra?: string;
+  organizacao_militar?: string;
   password: string;
   role: UserRole;
   groupIds?: string[];
 }
-
 export interface UpdateUserDTO {
   email?: string;
+  nome_completo?: string;
+  nome_guerra?: string;
+  organizacao_militar?: string;
   role?: UserRole;
   isActive?: boolean;
 }
@@ -76,6 +84,9 @@ export interface UpdatePasswordDTO {
 
 export interface UpdateProfileDTO {
   email?: string;
+  nome_completo?: string;
+  nome_guerra?: string;
+  organizacao_militar?: string;
 }
 
 // Query params para listagem

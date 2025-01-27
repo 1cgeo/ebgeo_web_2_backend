@@ -62,6 +62,30 @@ export const createUserValidation = [
     .isLength({ max: 255 })
     .withMessage('Email deve ter no máximo 255 caracteres'),
 
+  body('nome_completo')
+    .optional()
+    .isString()
+    .withMessage('Nome completo deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Nome completo deve ter no máximo 255 caracteres'),
+
+  body('nome_guerra')
+    .optional()
+    .isString()
+    .withMessage('Nome de guerra deve ser uma string')
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Nome de guerra deve ter no máximo 50 caracteres'),
+
+  body('organizacao_militar')
+    .optional()
+    .isString()
+    .withMessage('Organização militar deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Organização militar deve ter no máximo 255 caracteres'),
+
   body('password')
     .trim()
     .notEmpty()
@@ -108,6 +132,30 @@ export const updateUserValidation = [
     .isLength({ max: 255 })
     .withMessage('Email deve ter no máximo 255 caracteres'),
 
+  body('nome_completo')
+    .optional()
+    .isString()
+    .withMessage('Nome completo deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Nome completo deve ter no máximo 255 caracteres'),
+
+  body('nome_guerra')
+    .optional()
+    .isString()
+    .withMessage('Nome de guerra deve ser uma string')
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Nome de guerra deve ter no máximo 50 caracteres'),
+
+  body('organizacao_militar')
+    .optional()
+    .isString()
+    .withMessage('Organização militar deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Organização militar deve ter no máximo 255 caracteres'),
+
   body('role')
     .optional()
     .isIn(Object.values(UserRole))
@@ -148,4 +196,28 @@ export const updateProfileValidation = [
     .normalizeEmail()
     .isLength({ max: 255 })
     .withMessage('Email deve ter no máximo 255 caracteres'),
+
+  body('nome_completo')
+    .optional()
+    .isString()
+    .withMessage('Nome completo deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Nome completo deve ter no máximo 255 caracteres'),
+
+  body('nome_guerra')
+    .optional()
+    .isString()
+    .withMessage('Nome de guerra deve ser uma string')
+    .trim()
+    .isLength({ max: 50 })
+    .withMessage('Nome de guerra deve ter no máximo 50 caracteres'),
+
+  body('organizacao_militar')
+    .optional()
+    .isString()
+    .withMessage('Organização militar deve ser uma string')
+    .trim()
+    .isLength({ max: 255 })
+    .withMessage('Organização militar deve ter no máximo 255 caracteres'),
 ];
