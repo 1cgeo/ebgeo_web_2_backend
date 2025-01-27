@@ -1,5 +1,3 @@
-import { LogCategory } from '../../common/config/logger.js';
-
 // Métricas do Sistema
 export interface SystemMetrics {
   system: {
@@ -63,32 +61,6 @@ export interface SystemHealth {
     total: number;
     percentUsed: number;
   };
-}
-
-// Logs
-export interface LogQueryParams {
-  startDate?: string;
-  endDate?: string;
-  level?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
-  category?: LogCategory;
-  search?: string;
-  page?: number;
-  limit?: number;
-}
-
-export interface LogEntry {
-  timestamp: string;
-  level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
-  category: LogCategory;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
-export interface LogResponse {
-  logs: LogEntry[];
-  total: number;
-  page: number;
-  limit: number;
 }
 
 // Audit Trail

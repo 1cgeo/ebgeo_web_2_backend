@@ -2,9 +2,9 @@ import { Router } from 'express';
 import {
   getSystemHealth,
   getSystemMetrics,
-  queryLogs,
   queryAudit,
 } from './admin.module.js';
+import { queryLogs } from './admin.logs.js';
 import {
   logQueryValidation,
   auditQueryValidation,

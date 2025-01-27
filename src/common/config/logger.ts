@@ -1,4 +1,4 @@
-import { pino, LoggerOptions } from 'pino';
+import { pino, LoggerOptions, TransportTargetOptions } from 'pino';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pinoCaller = require('pino-caller');
@@ -87,193 +87,69 @@ if (process.env.NODE_ENV !== 'test') {
 // Configuração do logger
 const LOG_DIR = process.env.LOG_DIR || 'logs';
 
-const testConfig: LoggerOptions = {
-  level: 'debug',
+// Configuração base comum para todos os ambientes
+const baseConfig = {
+  level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   base: {
     env: process.env.NODE_ENV,
     service: 'ebgeo-service',
   },
-  transport: {
-    targets: [
-      {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
-        },
-      },
-    ],
-  },
 };
 
-const developmentConfig: LoggerOptions = {
-  level: 'debug',
-  base: {
-    env: process.env.NODE_ENV,
-    service: 'ebgeo-service',
+// Função para criar target de arquivo de log por categoria
+const createFileTarget = (
+  category: LogCategory,
+  level: string = 'info',
+): TransportTargetOptions => ({
+  target: 'pino-roll',
+  level,
+  options: {
+    file: `${LOG_DIR}/${category.toLowerCase()}.log`,
+    frequency: 'daily',
+    size: process.env.LOG_MAX_SIZE || '10m',
+    mkdir: true,
+    maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
+    compress: true,
+    filter: (obj: any) => obj.category === category,
   },
-  transport: {
-    targets: [
-      {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
-        },
-      },
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/app.log`,
-          frequency: 'daily',
-          size: '10m',
-          mkdir: true,
-        },
-      },
-    ],
+});
+
+// Função para criar target de console para desenvolvimento
+const createConsoleTarget = (): TransportTargetOptions => ({
+  target: 'pino-pretty',
+  options: {
+    colorize: true,
+    translateTime: 'SYS:standard',
+    ignore: 'pid,hostname',
   },
+});
+
+// Criar targets para todas as categorias
+const createCategoryTargets = (): TransportTargetOptions[] => {
+  return Object.values(LogCategory).map(category => createFileTarget(category));
 };
 
-const productionConfig: LoggerOptions = {
-  level: 'info',
-  base: {
-    env: process.env.NODE_ENV,
-    service: 'ebgeo-service',
-  },
-  transport: {
-    targets: [
-      // Log principal
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/app.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-        },
-      },
-      // Logs de erro
-      {
-        target: 'pino-roll',
-        level: 'error',
-        options: {
-          file: `${LOG_DIR}/error.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-        },
-      },
-      // Logs de autenticação
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/auth.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.AUTH,
-        },
-      },
-      // Logs de segurança
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/security.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.SECURITY,
-        },
-      },
-      // Logs de performance
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/performance.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.PERFORMANCE,
-        },
-      },
-      // Logs de banco de dados
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/db.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.DB,
-        },
-      },
-      // Logs de API
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/api.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.API,
-        },
-      },
-      // Logs de acesso
-      {
-        target: 'pino-roll',
-        level: 'info',
-        options: {
-          file: `${LOG_DIR}/access.log`,
-          frequency: 'daily',
-          size: process.env.LOG_MAX_SIZE || '10m',
-          mkdir: true,
-          maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-          compress: true,
-          filter: (obj: any) => obj.category === LogCategory.ACCESS,
-        },
-      },
-    ],
-  },
-};
+// Configuração unificada para todos os ambientes
+const createLoggerConfig = (): LoggerOptions => {
+  const targets: TransportTargetOptions[] = createCategoryTargets();
 
-// Criar o logger base com a configuração apropriada
-const getLoggerConfig = () => {
-  switch (process.env.NODE_ENV) {
-    case 'production':
-      return productionConfig;
-    case 'test':
-      return testConfig;
-    default:
-      return developmentConfig;
+  // Adicionar target de erro específico
+  targets.push(createFileTarget(LogCategory.SYSTEM, 'error'));
+
+  // Em desenvolvimento, adicionar console colorido
+  if (process.env.NODE_ENV === 'development') {
+    targets.unshift(createConsoleTarget());
   }
+
+  return {
+    ...baseConfig,
+    transport: {
+      targets,
+    },
+  };
 };
 
-const baseLogger = pino(getLoggerConfig());
-
-// Adicionar informação do caller
+const baseLogger = pino(createLoggerConfig());
 const logger = pinoCaller(baseLogger);
 
 // Interface estendida do logger para logging estruturado

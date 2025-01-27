@@ -2,16 +2,14 @@ import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import os from 'os';
 import { promises as fs } from 'fs';
-import path from 'path';
 import { db } from '../../common/config/database.js';
 import logger, { LogCategory } from '../../common/config/logger.js';
 import { ApiError } from '../../common/errors/apiError.js';
+import { analyzeRecentLogs } from './admin.logs.js';
 import {
   SystemMetrics,
   SystemHealth,
-  LogQueryParams,
   AuditQueryParams,
-  LogEntry,
   ServiceHealth,
   AuditEntry,
 } from './admin.types.js';
@@ -128,77 +126,6 @@ export async function getSystemMetrics(_req: Request, res: Response) {
       },
     });
     throw ApiError.internal('Erro ao obter métricas do sistema');
-  }
-}
-
-// Logs
-export async function queryLogs(req: Request, res: Response) {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    throw ApiError.unprocessableEntity('Parâmetros de consulta inválidos', {
-      errors: errors.array(),
-    });
-  }
-
-  const {
-    startDate,
-    endDate,
-    level,
-    category,
-    search,
-    page = 1,
-    limit = 100,
-  } = req.query as unknown as LogQueryParams;
-
-  try {
-    const logDir = process.env.LOG_DIR || 'logs';
-
-    // Try to access logs directory
-    try {
-      await fs.access(logDir);
-    } catch (error) {
-      // If directory doesn't exist or isn't accessible, return empty results
-      logger.logAccess('No logs directory found', {
-        category: LogCategory.SYSTEM,
-        additionalInfo: {
-          logDir,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        },
-      });
-
-      return res.json({
-        logs: [],
-        total: 0,
-        page: Number(page),
-        limit: Number(limit),
-      });
-    }
-
-    const logs = await processLogFiles(logDir, {
-      startDate,
-      endDate,
-      level,
-      category,
-      search,
-    });
-
-    const start = (Number(page) - 1) * Number(limit);
-    const paginatedLogs = logs.slice(start, start + Number(limit));
-
-    return res.json({
-      logs: paginatedLogs,
-      total: logs.length,
-      page: Number(page),
-      limit: Number(limit),
-    });
-  } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.SYSTEM,
-      additionalInfo: {
-        operation: 'query_logs',
-      },
-    });
-    throw ApiError.internal('Erro ao consultar logs');
   }
 }
 
@@ -331,157 +258,6 @@ function getOverallStatus(services: ServiceHealth[]): SystemHealth['status'] {
   if (services.some(s => s.status === 'unhealthy')) return 'unhealthy';
   if (services.some(s => s.status === 'degraded')) return 'degraded';
   return 'healthy';
-}
-
-async function analyzeRecentLogs() {
-  const logDir = process.env.LOG_DIR || 'logs';
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  let errors = 0;
-  let warnings = 0;
-  let totalRequests = 0;
-
-  try {
-    const files = await fs.readdir(logDir);
-    for (const file of files) {
-      if (!file.endsWith('.log')) continue;
-
-      const filePath = path.join(logDir, file);
-      const stats = await fs.stat(filePath);
-
-      if (stats.mtime < twentyFourHoursAgo) continue;
-
-      const content = await fs.readFile(filePath, 'utf-8');
-      const lines = content.split('\n').filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const log = JSON.parse(line);
-          if (new Date(log.timestamp) < twentyFourHoursAgo) continue;
-
-          if (log.level === 'ERROR') errors++;
-          if (log.level === 'WARN') warnings++;
-          if (log.category === LogCategory.API) totalRequests++;
-        } catch {
-          continue;
-        }
-      }
-    }
-  } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.SYSTEM,
-      additionalInfo: {
-        operation: 'analyze_logs',
-      },
-    });
-  }
-
-  return {
-    errors24h: errors,
-    warnings24h: warnings,
-    totalRequests24h: totalRequests,
-  };
-}
-
-async function processLogFiles(
-  logDir: string,
-  filters: Omit<LogQueryParams, 'page' | 'limit'>,
-): Promise<LogEntry[]> {
-  try {
-    const files = await fs.readdir(logDir);
-    const logs: LogEntry[] = [];
-
-    for (const file of files) {
-      if (!file.endsWith('.log')) continue;
-
-      const filePath = path.join(logDir, file);
-      try {
-        const content = await fs.readFile(filePath, 'utf-8');
-        const lines = content.split('\n').filter(Boolean);
-
-        for (const line of lines) {
-          try {
-            const log = JSON.parse(line);
-            if (matchesLogFilters(log, filters)) {
-              logs.push(formatLogEntry(log));
-            }
-          } catch {
-            continue;
-          }
-        }
-      } catch (error) {
-        logger.logError(
-          error instanceof Error ? error : new Error(String(error)),
-          {
-            category: LogCategory.SYSTEM,
-            additionalInfo: {
-              operation: 'read_log_file',
-              file: filePath,
-            },
-          },
-        );
-        continue; // Skip problematic files but continue processing others
-      }
-    }
-
-    return logs.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
-  } catch (error) {
-    logger.logError(error instanceof Error ? error : new Error(String(error)), {
-      category: LogCategory.SYSTEM,
-      additionalInfo: {
-        operation: 'process_log_files',
-        logDir,
-      },
-    });
-    throw error;
-  }
-}
-
-function matchesLogFilters(
-  log: any,
-  filters: Omit<LogQueryParams, 'page' | 'limit'>,
-): boolean {
-  if (
-    filters.startDate &&
-    new Date(log.timestamp) < new Date(filters.startDate)
-  ) {
-    return false;
-  }
-  if (filters.endDate && new Date(log.timestamp) > new Date(filters.endDate)) {
-    return false;
-  }
-  if (filters.level && log.level !== filters.level) {
-    return false;
-  }
-  if (filters.category && log.category !== filters.category) {
-    return false;
-  }
-  if (
-    filters.search &&
-    !JSON.stringify(log).toLowerCase().includes(filters.search.toLowerCase())
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function formatLogEntry(log: any): LogEntry {
-  return {
-    timestamp: log.timestamp,
-    level: log.level,
-    category: log.category,
-    message: log.msg || log.message,
-    details: {
-      ...log,
-      timestamp: undefined,
-      level: undefined,
-      category: undefined,
-      msg: undefined,
-      message: undefined,
-    },
-  };
 }
 
 function formatAuditEntry(row: any): AuditEntry {

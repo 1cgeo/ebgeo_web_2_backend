@@ -4,38 +4,20 @@ import { AuditAction } from './admin.types.js';
 
 // Validação para consulta de logs
 export const logQueryValidation: ValidationChain[] = [
-  query('startDate')
+  query('category')
     .optional()
-    .isISO8601()
-    .withMessage('Data inicial deve estar no formato ISO8601'),
-
-  query('endDate')
-    .optional()
-    .isISO8601()
-    .withMessage('Data final deve estar no formato ISO8601'),
+    .isIn(Object.values(LogCategory))
+    .withMessage('Categoria inválida'),
 
   query('level')
     .optional()
     .isIn(['ERROR', 'WARN', 'INFO', 'DEBUG'])
     .withMessage('Nível deve ser ERROR, WARN, INFO ou DEBUG'),
 
-  query('category')
-    .optional()
-    .isIn(Object.values(LogCategory))
-    .withMessage('Categoria inválida'),
-
-  query('search').optional().isString().trim(),
-
-  query('page')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Página deve ser um número inteiro maior que 0')
-    .toInt(),
-
   query('limit')
     .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limite deve ser entre 1 e 100')
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limite deve ser entre 1 e 1000')
     .toInt(),
 ];
 
