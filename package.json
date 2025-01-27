@@ -35,7 +35,6 @@
         "pg-promise": "^11.10.2",
         "pino": "^9.6.0",
         "pino-pretty": "^13.0.0",
-        "pino-roll": "^2.2.0",
         "string-strip-html": "^13.4.8",
         "swagger-jsdoc": "^6.2.8",
         "swagger-ui-express": "^5.0.1",

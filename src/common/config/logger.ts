@@ -1,7 +1,14 @@
-import { pino, LoggerOptions, TransportTargetOptions } from 'pino';
+import {
+  pino,
+  LoggerOptions,
+  Logger,
+  DestinationStream,
+  multistream,
+} from 'pino';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pinoCaller = require('pino-caller');
+const pretty = require('pino-pretty');
 import fs from 'fs';
 
 export const IGNORED_PATHS = [
@@ -17,7 +24,6 @@ export const shouldIgnorePath = (path: string): boolean => {
   return IGNORED_PATHS.some(pattern => pattern.test(path));
 };
 
-// Definição das categorias de log
 export enum LogCategory {
   AUTH = 'AUTH',
   API = 'API',
@@ -29,7 +35,6 @@ export enum LogCategory {
   ADMIN = 'ADMIN',
 }
 
-// Interface para log estruturado
 export interface LogDetails {
   category: LogCategory;
   requestId?: string;
@@ -49,7 +54,15 @@ export interface LogDetails {
   additionalInfo?: Record<string, any>;
 }
 
-// Validação das configurações de log
+interface CategoryConfig {
+  level: string;
+  streams: { stream: DestinationStream; level: string }[];
+}
+
+type CategoryLoggers = {
+  [K in LogCategory]: Logger;
+};
+
 function validateLogConfig(): void {
   const retention = process.env.LOG_RETENTION_DAYS
     ? parseInt(process.env.LOG_RETENTION_DAYS)
@@ -79,16 +92,52 @@ function validateLogConfig(): void {
   }
 }
 
-// Executa validação na inicialização, exceto em ambiente de teste
 if (process.env.NODE_ENV !== 'test') {
   validateLogConfig();
 }
 
-// Configuração do logger
 const LOG_DIR = process.env.LOG_DIR || 'logs';
 
-// Configuração base comum para todos os ambientes
-const baseConfig = {
+// Stream formatado para console
+const prettyStream = pretty({
+  colorize: true,
+  translateTime: 'SYS:standard',
+  ignore: 'pid,hostname',
+});
+
+// Configuração para cada categoria
+const categoryConfigs: Record<LogCategory, CategoryConfig> = Object.values(
+  LogCategory,
+).reduce(
+  (acc, category) => {
+    const filePath = `${LOG_DIR}/${category.toLowerCase()}.log`;
+    const fileStream = pino.destination(filePath);
+
+    const streams: { stream: DestinationStream; level: string }[] = [
+      { stream: fileStream, level: 'info' },
+    ];
+
+    // Adicionar console stream para ADMIN e SYSTEM em desenvolvimento
+    if (
+      process.env.NODE_ENV === 'development' &&
+      (category === LogCategory.ADMIN || category === LogCategory.SYSTEM)
+    ) {
+      streams.push({ stream: prettyStream, level: 'info' });
+    }
+
+    return {
+      ...acc,
+      [category]: {
+        level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+        streams,
+      },
+    };
+  },
+  {} as Record<LogCategory, CategoryConfig>,
+);
+
+// Configuração do logger principal
+const loggerConfig: LoggerOptions = {
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
   base: {
     env: process.env.NODE_ENV,
@@ -96,77 +145,29 @@ const baseConfig = {
   },
 };
 
-// Função para criar target de arquivo de log por categoria
-const createFileTarget = (
-  category: LogCategory,
-  level: string = 'info',
-): TransportTargetOptions => ({
-  target: 'pino-roll',
-  level,
-  options: {
-    file: `${LOG_DIR}/${category.toLowerCase()}.log`,
-    frequency: 'daily',
-    size: process.env.LOG_MAX_SIZE || '10m',
-    mkdir: true,
-    maxFiles: parseInt(process.env.LOG_RETENTION_DAYS || '30'),
-    compress: true,
-    filter: (obj: any) => obj.category === category,
+// Criar um logger para cada categoria
+const loggers: CategoryLoggers = Object.entries(categoryConfigs).reduce(
+  (acc, [category, config]) => {
+    return {
+      ...acc,
+      [category as LogCategory]: pino(
+        {
+          ...loggerConfig,
+          level: config.level,
+        },
+        multistream(config.streams),
+      ),
+    };
   },
-});
+  {} as CategoryLoggers,
+);
 
-// Função para criar target de console para desenvolvimento
-const createConsoleTarget = (): TransportTargetOptions => ({
-  target: 'pino-pretty',
-  options: {
-    colorize: true,
-    translateTime: 'SYS:standard',
-    ignore: 'pid,hostname',
-  },
-});
-
-// Criar targets para todas as categorias
-const createCategoryTargets = (): TransportTargetOptions[] => {
-  return Object.values(LogCategory).map(category => createFileTarget(category));
-};
-
-// Configuração unificada para todos os ambientes
-const createLoggerConfig = (): LoggerOptions => {
-  const targets: TransportTargetOptions[] = createCategoryTargets();
-
-  // Adicionar target de erro específico
-  targets.push(createFileTarget(LogCategory.SYSTEM, 'error'));
-
-  // Em desenvolvimento, adicionar console colorido
-  if (process.env.NODE_ENV === 'development') {
-    targets.unshift(createConsoleTarget());
-  }
-
-  return {
-    ...baseConfig,
-    transport: {
-      targets,
-    },
-  };
-};
-
-const baseLogger = pino(createLoggerConfig());
+// Logger base
+const baseLogger = pino(loggerConfig);
 const logger = pinoCaller(baseLogger);
 
 // Interface estendida do logger para logging estruturado
-interface StructuredLogger {
-  logError: (error: Error | string, details: LogDetails) => void;
-  logMetric: (
-    name: string,
-    value: number,
-    details: Partial<LogDetails>,
-  ) => void;
-  logAuth: (message: string, details: Partial<LogDetails>) => void;
-  logSecurity: (message: string, details: Partial<LogDetails>) => void;
-  logAccess: (message: string, details: Partial<LogDetails>) => void;
-  logPerformance: (message: string, details: Partial<LogDetails>) => void;
-}
-
-const structuredLogger: StructuredLogger = {
+const structuredLogger = {
   logError(error: Error | string, details: LogDetails) {
     const errorMessage = error instanceof Error ? error.message : error;
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -175,6 +176,17 @@ const structuredLogger: StructuredLogger = {
     Error.captureStackTrace(err, this.logError);
     const callerStack = err.stack?.split('\n')[1];
 
+    const categoryLogger = loggers[details.category];
+    if (categoryLogger) {
+      categoryLogger.error({
+        msg: errorMessage,
+        errorStack,
+        callerStack,
+        ...details,
+      });
+    }
+
+    // Também loga no logger principal
     logger.error({
       msg: errorMessage,
       errorStack,
@@ -189,44 +201,53 @@ const structuredLogger: StructuredLogger = {
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
-    logger.info({
-      msg: 'Metric recorded',
-      category: LogCategory.PERFORMANCE,
-      metric: name,
-      value,
-      ...details,
-    });
+
+    const categoryLogger = loggers[LogCategory.PERFORMANCE];
+    if (categoryLogger) {
+      categoryLogger.info({
+        msg: 'Metric recorded',
+        metric: name,
+        value,
+        ...details,
+      });
+    }
   },
 
   logAuth(message: string, details: Partial<LogDetails>) {
-    logger.info({
-      msg: message,
-      category: LogCategory.AUTH,
-      ...details,
-    });
+    const categoryLogger = loggers[LogCategory.AUTH];
+    if (categoryLogger) {
+      categoryLogger.info({
+        msg: message,
+        ...details,
+      });
+    }
   },
 
   logSecurity(message: string, details: Partial<LogDetails>) {
-    logger.warn({
-      msg: message,
-      category: LogCategory.SECURITY,
-      ...details,
-    });
+    const categoryLogger = loggers[LogCategory.SECURITY];
+    if (categoryLogger) {
+      categoryLogger.warn({
+        msg: message,
+        ...details,
+      });
+    }
   },
 
   logAccess(message: string, details: Partial<LogDetails>) {
     if (
-      details.additionalInfo &&
-      details.additionalInfo.path &&
+      details.additionalInfo?.path &&
       shouldIgnorePath(details.additionalInfo.path)
     ) {
       return;
     }
-    logger.info({
-      msg: message,
-      category: LogCategory.ACCESS,
-      ...details,
-    });
+
+    const categoryLogger = loggers[LogCategory.ACCESS];
+    if (categoryLogger) {
+      categoryLogger.info({
+        msg: message,
+        ...details,
+      });
+    }
   },
 
   logPerformance(message: string, details: Partial<LogDetails>) {
@@ -235,11 +256,14 @@ const structuredLogger: StructuredLogger = {
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
-    logger.info({
-      msg: message,
-      category: LogCategory.PERFORMANCE,
-      ...details,
-    });
+
+    const categoryLogger = loggers[LogCategory.PERFORMANCE];
+    if (categoryLogger) {
+      categoryLogger.info({
+        msg: message,
+        ...details,
+      });
+    }
   },
 };
 
