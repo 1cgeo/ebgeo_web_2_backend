@@ -54,7 +54,7 @@ nearest_feature AS (
   WHERE ST_DWithin(
     e.geom::geography, 
     c.geom::geography, 
-    300
+    3
   )
   ORDER BY 
     CASE 

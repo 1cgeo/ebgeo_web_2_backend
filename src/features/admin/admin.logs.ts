@@ -1,4 +1,3 @@
-// src/features/admin/admin.logs.ts
 import { Request, Response } from 'express';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -6,6 +5,7 @@ import { ApiError } from '../../common/errors/apiError.js';
 import { LogCategory } from '../../common/config/logger.js';
 import readline from 'readline';
 import { createReadStream } from 'fs';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 const MAX_LOGS = 1000; // Limite máximo de logs retornados
 const DEFAULT_LIMIT = 100; // Limite padrão
@@ -94,7 +94,7 @@ export async function queryLogs(req: Request, res: Response) {
     logFiles = existingFiles.filter((file): file is string => file !== null);
 
     if (logFiles.length === 0) {
-      return res.json({
+      return sendJsonResponse(res, {
         logs: [],
         total: 0,
         limit: validatedLimit,
@@ -148,7 +148,7 @@ export async function queryLogs(req: Request, res: Response) {
       ),
     };
 
-    return res.json(response);
+    return sendJsonResponse(res, response);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw ApiError.internal('Erro ao consultar logs');

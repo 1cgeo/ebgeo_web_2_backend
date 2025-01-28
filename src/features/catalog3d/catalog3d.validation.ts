@@ -1,4 +1,4 @@
-import { body, query } from 'express-validator';
+import { body, query, param } from 'express-validator';
 
 export const searchValidation = [
   query('q').optional().isString().trim().escape(),
@@ -15,6 +15,8 @@ export const searchValidation = [
 ];
 
 export const updatePermissionsValidation = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
+
   body('access_level')
     .optional()
     .isIn(['public', 'private'])
@@ -74,4 +76,8 @@ export const listModelPermissionsValidation = [
     .optional()
     .isIn(['asc', 'desc'])
     .withMessage('Direção de ordenação deve ser asc ou desc'),
+];
+
+export const validateUUIDParam = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
 ];

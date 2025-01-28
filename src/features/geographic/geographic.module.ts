@@ -11,6 +11,7 @@ import {
 } from './geographic.types.js';
 import * as queries from './geographic.queries.js';
 import { createAudit } from '../../common/config/audit.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 export async function searchGeographicNames(req: Request, res: Response) {
   const errors = validationResult(req);
@@ -43,7 +44,7 @@ export async function searchGeographicNames(req: Request, res: Response) {
       },
     });
 
-    return res.json(results);
+    return sendJsonResponse(res, results);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
@@ -73,7 +74,7 @@ export async function listZones(
   const searchTerm = search === undefined ? null : search;
 
   try {
-    const validatedSortDirection = order.toUpperCase();
+    const validatedSortDirection = order === 'asc' ? 'ASC' : 'DESC';
 
     const [zones, total] = await Promise.all([
       db.any(queries.LIST_ZONES, [
@@ -98,7 +99,7 @@ export async function listZones(
       },
     });
 
-    return res.json({
+    return sendJsonResponse(res, {
       zones,
       total: Number(total.count),
       page: Number(page),
@@ -135,7 +136,7 @@ export async function getZonePermissions(req: Request, res: Response) {
       },
     });
 
-    return res.json(permissions);
+    return sendJsonResponse(res, permissions);
   } catch (error) {
     if (error instanceof ApiError) throw error;
 
@@ -220,7 +221,7 @@ export async function createZone(req: Request, res: Response) {
       },
     });
 
-    return res.status(201).json(result);
+    return sendJsonResponse(res, result, 201);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
@@ -305,7 +306,9 @@ export async function updateZonePermissions(req: Request, res: Response) {
       },
     });
 
-    return res.json({ message: 'Permissões atualizadas com sucesso' });
+    return sendJsonResponse(res, {
+      message: 'Permissões atualizadas com sucesso',
+    });
   } catch (error) {
     if (error instanceof ApiError) throw error;
 
@@ -352,7 +355,7 @@ export async function deleteZone(req: Request, res: Response) {
       },
     });
 
-    return res.json({ message: 'Zona removida com sucesso' });
+    return sendJsonResponse(res, { message: 'Zona removida com sucesso' });
   } catch (error) {
     if (error instanceof ApiError) throw error;
 

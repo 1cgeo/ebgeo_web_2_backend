@@ -8,6 +8,7 @@ import {
   searchValidation,
   updatePermissionsValidation,
   listModelPermissionsValidation,
+  validateUUIDParam,
 } from './catalog3d.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { UserRole } from '../auth/auth.types.js';
@@ -33,6 +34,7 @@ router.get(
 router.get(
   '/permissions/:modelId',
   authorize([UserRole.ADMIN]),
+  validateRequest(validateUUIDParam),
   asyncHandler(listModelPermissions),
 );
 

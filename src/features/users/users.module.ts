@@ -13,6 +13,7 @@ import {
 } from './users.types.js';
 import { UserRole } from '../auth/auth.types.js';
 import { createAudit } from '../../common/config/audit.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 // Função utilitária para adicionar pepper à senha
 const addPepper = (password: string): string => {
@@ -48,7 +49,7 @@ export async function listUsers(
           ? null
           : false;
   const roleFilter = role === 'all' ? null : role === undefined ? null : role;
-  const validatedSortDirection = order.toUpperCase();
+  const validatedSortDirection = order === 'asc' ? 'ASC' : 'DESC';
 
   try {
     const [users, total] = await Promise.all([
@@ -76,7 +77,7 @@ export async function listUsers(
       },
     });
 
-    return res.json({
+    return sendJsonResponse(res, {
       users,
       total: Number(total.count),
       page: Number(page),
@@ -103,7 +104,7 @@ export async function getUserDetails(req: Request, res: Response) {
       additionalInfo: { targetUserId: id },
     });
 
-    return res.json(user);
+    return sendJsonResponse(res, user);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.ADMIN,
@@ -217,7 +218,7 @@ export async function createUser(
       },
     });
 
-    return res.status(201).json(result);
+    return sendJsonResponse(res, result, 201);
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -358,7 +359,7 @@ export async function updateUser(
       },
     });
 
-    return res.json(result);
+    return sendJsonResponse(res, result);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.ADMIN,
@@ -457,7 +458,7 @@ export async function updatePassword(
       },
     });
 
-    return res.json({ message: 'Senha atualizada com sucesso' });
+    return sendJsonResponse(res, { message: 'Senha atualizada com sucesso' });
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -504,7 +505,7 @@ export async function getUserProfile(req: Request, res: Response) {
       userId: req.user.userId,
     });
 
-    return res.json(formattedProfile);
+    return sendJsonResponse(res, formattedProfile);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,
@@ -610,7 +611,7 @@ export async function updateProfile(
       },
     });
 
-    return res.json(updatedUser);
+    return sendJsonResponse(res, updatedUser);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,

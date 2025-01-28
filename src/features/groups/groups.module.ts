@@ -5,6 +5,7 @@ import { ApiError } from '../../common/errors/apiError.js';
 import { CreateGroupDTO, UpdateGroupDTO } from './groups.types.js';
 import * as queries from './groups.queries.js';
 import { createAudit } from '../../common/config/audit.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 export async function listGroups(req: Request, res: Response) {
   const {
@@ -43,7 +44,7 @@ export async function listGroups(req: Request, res: Response) {
       },
     });
 
-    return res.json({
+    return sendJsonResponse(res, {
       groups,
       total: Number(total.count),
       page: Number(page),
@@ -126,7 +127,7 @@ export async function createGroup(
       },
     });
 
-    return res.status(201).json(result);
+    return sendJsonResponse(res, result, 201);
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -244,7 +245,7 @@ export async function updateGroup(
       },
     });
 
-    return res.json(result);
+    return sendJsonResponse(res, result);
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -329,7 +330,7 @@ export async function deleteGroup(req: Request, res: Response) {
       },
     });
 
-    return res.json({ message: 'Grupo removido com sucesso' });
+    return sendJsonResponse(res, { message: 'Grupo removido com sucesso' });
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -367,7 +368,7 @@ export async function getGroupDetails(req: Request, res: Response) {
       },
     });
 
-    return res.json(group);
+    return sendJsonResponse(res, group);
   } catch (error) {
     if (error instanceof ApiError) throw error;
 

@@ -1,4 +1,4 @@
-import { query, body, ValidationChain } from 'express-validator';
+import { query, body, ValidationChain, param } from 'express-validator';
 
 export const searchValidation: ValidationChain[] = [
   query('q')
@@ -106,6 +106,8 @@ export const createZoneValidation: ValidationChain[] = [
 ];
 
 export const updateZonePermissionsValidation: ValidationChain[] = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
+
   body('userIds')
     .isArray()
     .withMessage('userIds deve ser um array')
@@ -160,4 +162,8 @@ export const listZonesValidation = [
     .optional()
     .isIn(['asc', 'desc'])
     .withMessage('Direção de ordenação deve ser asc ou desc'),
+];
+
+export const validateUUIDParam = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
 ];

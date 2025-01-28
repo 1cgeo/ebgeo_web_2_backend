@@ -14,6 +14,7 @@ import {
 } from './catalog3d.types.js';
 import { UserRole } from '../auth/auth.types.js';
 import { createAudit } from '../../common/config/audit.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 export async function checkModelAccess(
   modelId: string,
@@ -41,7 +42,7 @@ export async function listModelPermissions(
   const searchTerm = search === undefined ? null : search;
 
   try {
-    const validatedSortDirection = order.toUpperCase();
+    const validatedSortDirection = order === 'asc' ? 'ASC' : 'DESC';
 
     const [models, total] = await Promise.all([
       db.any(LIST_MODEL_PERMISSIONS, [
@@ -66,7 +67,7 @@ export async function listModelPermissions(
       },
     });
 
-    return res.json({
+    return sendJsonResponse(res, {
       models,
       total: Number(total.count),
       page: Number(page),
@@ -217,7 +218,9 @@ export async function updateModelPermissions(req: Request, res: Response) {
       },
     });
 
-    return res.json({ message: 'Permissões atualizadas com sucesso' });
+    return sendJsonResponse(res, {
+      message: 'Permissões atualizadas com sucesso',
+    });
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

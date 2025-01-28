@@ -14,6 +14,7 @@ import {
 import * as queries from './auth.queries.js';
 import { generateToken } from './auth.middleware.js';
 import { createAudit } from '../../common/config/audit.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 // Função utilitária para adicionar pepper à senha
 const addPepper = (password: string): string => {
@@ -116,7 +117,7 @@ export async function login(
       },
     });
 
-    return res.json(response);
+    return sendJsonResponse(res, response);
   } catch (error) {
     if (!(error instanceof ApiError)) {
       logger.logError(
@@ -150,7 +151,7 @@ export async function logout(req: Request, res: Response) {
       });
     }
 
-    return res.json({ message: 'Logout realizado com sucesso' });
+    return sendJsonResponse(res, { message: 'Logout realizado com sucesso' });
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.AUTH,
@@ -180,7 +181,7 @@ export async function getApiKey(req: Request, res: Response) {
       generatedAt: result.api_key_created_at,
     };
 
-    return res.json(response);
+    return sendJsonResponse(res, response);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.AUTH,
@@ -230,7 +231,7 @@ export async function regenerateApiKey(req: Request, res: Response) {
       generatedAt: result.api_key_created_at,
     };
 
-    return res.json(response);
+    return sendJsonResponse(res, response, 201);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.AUTH,
@@ -265,7 +266,7 @@ export async function getApiKeyHistory(req: Request, res: Response) {
       history,
     };
 
-    return res.json(response);
+    return sendJsonResponse(res, response);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.AUTH,
@@ -329,7 +330,7 @@ export async function validateApiKey(req: Request, res: Response) {
       },
     });
 
-    return res.json({ message: 'API key válida' });
+    return sendJsonResponse(res, { message: 'API key válida' });
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.AUTH,

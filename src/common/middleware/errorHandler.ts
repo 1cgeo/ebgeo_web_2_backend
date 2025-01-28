@@ -18,12 +18,16 @@ export const errorHandler = (
   // Estruturar log baseado no tipo de erro
   if (err instanceof ApiError) {
     // Resposta para erros da API
-    res.status(err.statusCode).json({
-      status: 'error',
-      message: err.message,
-      details: err.details,
-      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
-    });
+    res
+      .status(err.statusCode)
+      .setHeader('Content-Type', 'application/json')
+      .setHeader('Cache-Control', 'no-store')
+      .json({
+        status: 'error',
+        message: err.message,
+        details: err.details,
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+      });
     return;
   }
 

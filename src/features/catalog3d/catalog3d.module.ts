@@ -5,6 +5,7 @@ import logger, { LogCategory } from '../../common/config/logger.js';
 import { Catalog3D, SearchResult } from './catalog3d.types.js';
 import { COUNT_CATALOG, SEARCH_CATALOG } from './catalog3d.queries.js';
 import { ApiError } from '../../common/errors/apiError.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 export async function searchCatalog3D(req: Request, res: Response) {
   const errors = validationResult(req);
@@ -31,7 +32,7 @@ export async function searchCatalog3D(req: Request, res: Response) {
       data,
     };
 
-    return res.json(result);
+    return sendJsonResponse(res, result);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,

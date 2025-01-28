@@ -12,6 +12,7 @@ import {
   createZoneValidation,
   updateZonePermissionsValidation,
   listZonesValidation,
+  validateUUIDParam,
 } from './geographic.validation.js';
 import { asyncHandler } from '../../common/middleware/asyncHandler.js';
 import { authorize } from '../auth/auth.middleware.js';
@@ -57,6 +58,7 @@ router.put(
 router.delete(
   '/zones/:zoneId',
   authorize([UserRole.ADMIN]),
+  validateRequest(validateUUIDParam),
   asyncHandler(deleteZone),
 );
 

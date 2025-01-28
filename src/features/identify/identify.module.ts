@@ -6,6 +6,7 @@ import { Feature } from './identify.types.js';
 import { FIND_NEAREST_FEATURE } from './identify.queries.js';
 import { ApiError } from '../../common/errors/apiError.js';
 import { validateSpatialPoint } from './identify.validation.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 export async function findNearestFeature(req: Request, res: Response) {
   const errors = validationResult(req);
@@ -45,7 +46,7 @@ export async function findNearestFeature(req: Request, res: Response) {
     });
 
     if (!result) {
-      return res.json({
+      return sendJsonResponse(res, {
         message: 'Nenhuma feição encontrada para as coordenadas fornecidas.',
       });
     }
@@ -55,7 +56,7 @@ export async function findNearestFeature(req: Request, res: Response) {
     result.altitude_base = Number(result.altitude_base);
     result.altitude_topo = Number(result.altitude_topo);
 
-    return res.json(result);
+    return sendJsonResponse(res, result);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.API,

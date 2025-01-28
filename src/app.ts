@@ -69,15 +69,18 @@ app.use('/api/admin', adminRoutes);
 app.get('/health', async (_req: Request, res: Response) => {
   try {
     await db.one('SELECT 1'); // Verificar conexão com banco
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      environment: envManager.getEnvironment(),
-      https: envManager.useHttps(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      database: 'connected',
-    });
+    res
+      .setHeader('Content-Type', 'application/json')
+      .setHeader('Cache-Control', 'no-store')
+      .json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: envManager.getEnvironment(),
+        https: envManager.useHttps(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        database: 'connected',
+      });
   } catch (err) {
     logger.logError(err instanceof Error ? err : new Error(String(err)), {
       category: LogCategory.SYSTEM,

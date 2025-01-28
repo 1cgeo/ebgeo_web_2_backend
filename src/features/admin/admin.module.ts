@@ -14,6 +14,7 @@ import {
   AuditEntry,
 } from './admin.types.js';
 import * as queries from './admin.queries.js';
+import { sendJsonResponse } from '../../common/helpers/response.js';
 
 // Health Check
 export async function getSystemHealth(_req: Request, res: Response) {
@@ -58,7 +59,7 @@ export async function getSystemHealth(_req: Request, res: Response) {
       },
     };
 
-    return res.json(health);
+    return sendJsonResponse(res, health);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.SYSTEM,
@@ -117,7 +118,7 @@ export async function getSystemMetrics(_req: Request, res: Response) {
       logs: await analyzeRecentLogs(),
     };
 
-    return res.json(metrics);
+    return sendJsonResponse(res, metrics);
   } catch (error) {
     logger.logError(error instanceof Error ? error : new Error(String(error)), {
       category: LogCategory.SYSTEM,
@@ -165,7 +166,7 @@ export async function queryAudit(req: Request, res: Response) {
     const entries = result.map(formatAuditEntry);
     const total = result[0]?.total_count || 0;
 
-    return res.json({
+    return sendJsonResponse(res, {
       entries,
       total: Number(total),
       page: Number(page),

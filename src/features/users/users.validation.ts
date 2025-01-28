@@ -94,7 +94,9 @@ export const createUserValidation = [
     .withMessage('Senha deve ser uma string')
     .isLength({ min: 8, max: 100 })
     .withMessage('Senha deve ter entre 8 e 100 caracteres')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/,
+    )
     .withMessage(
       'Senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
     ),
@@ -182,7 +184,9 @@ export const updatePasswordValidation = [
     .withMessage('Nova senha deve ser uma string')
     .isLength({ min: 8, max: 100 })
     .withMessage('Nova senha deve ter entre 8 e 100 caracteres')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/,
+    )
     .withMessage(
       'Nova senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
     ),
