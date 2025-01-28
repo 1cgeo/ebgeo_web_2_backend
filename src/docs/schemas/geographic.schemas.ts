@@ -87,6 +87,7 @@ export const geographicSchemas: Record<string, OpenAPISchema> = {
 
   UpdateZonePermissionsRequest: {
     type: 'object',
+    required: ['userIds', 'groupIds'],
     properties: {
       userIds: {
         type: 'array',

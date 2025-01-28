@@ -13,6 +13,7 @@ import {
   createGroupValidation,
   updateGroupValidation,
   listGroupsValidation,
+  validateUUIDParam
 } from './groups.validation.js';
 import { validateRequest } from '../../common/middleware/validateRequest.js';
 
@@ -25,7 +26,7 @@ router.get(
   asyncHandler(listGroups),
 );
 
-router.get('/:id', authorize([UserRole.ADMIN]), asyncHandler(getGroupDetails));
+router.get('/:id', authorize([UserRole.ADMIN]), validateRequest(validateUUIDParam), asyncHandler(getGroupDetails));
 
 router.post(
   '/',
@@ -41,6 +42,6 @@ router.put(
   asyncHandler(updateGroup),
 );
 
-router.delete('/:id', authorize([UserRole.ADMIN]), asyncHandler(deleteGroup));
+router.delete('/:id', authorize([UserRole.ADMIN]), validateRequest(validateUUIDParam), asyncHandler(deleteGroup));
 
 export default router;

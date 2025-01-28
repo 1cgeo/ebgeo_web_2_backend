@@ -32,8 +32,8 @@ export const LIST_GROUPS = `
   LEFT JOIN ng.users creator ON g.created_by = creator.id
   LEFT JOIN group_metrics gm ON g.id = gm.id
   WHERE (COALESCE($1, '') = '' OR 
-    LOWER(g.name) ILIKE '%' || LOWER(COALESCE($1, '')) || '%' OR 
-    LOWER(g.description) ILIKE '%' || LOWER(COALESCE($1, '')) || '%')
+    g.name ILIKE '%' || COALESCE($1, '') || '%' OR 
+    g.description ILIKE '%' || COALESCE($1, '') || '%')
   ORDER BY 
     CASE WHEN $4 = 'name' THEN g.name
          WHEN $4 = 'created_at' THEN g.created_at::text
@@ -50,8 +50,8 @@ export const COUNT_GROUPS = `
   SELECT COUNT(*)
   FROM ng.groups g
   WHERE (COALESCE($1, '') = '' OR 
-    LOWER(g.name) ILIKE '%' || LOWER(COALESCE($1, '')) || '%' OR 
-    LOWER(g.description) ILIKE '%' || LOWER(COALESCE($1, '')) || '%')
+    g.name ILIKE '%' || COALESCE($1, '') || '%' OR 
+    g.description ILIKE '%' || COALESCE($1, '') || '%')
 `;
 
 export const GET_GROUP = `

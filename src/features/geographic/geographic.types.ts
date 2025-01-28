@@ -50,8 +50,8 @@ export interface CreateZoneRequest {
 }
 
 export interface UpdateZonePermissionsRequest {
-  userIds?: string[];
-  groupIds?: string[];
+  userIds: string[];
+  groupIds: string[];
 }
 
 export interface ZoneQueryParams {

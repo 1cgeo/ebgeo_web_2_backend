@@ -104,3 +104,7 @@ export const updateGroupValidation = [
     })
     .withMessage('userIds contém UUIDs inválidos'),
 ];
+
+export const validateUUIDParam = [
+  param('id').isUUID().withMessage('ID do grupo inválido'),
+];

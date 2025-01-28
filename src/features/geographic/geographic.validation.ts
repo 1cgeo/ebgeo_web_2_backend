@@ -107,7 +107,6 @@ export const createZoneValidation: ValidationChain[] = [
 
 export const updateZonePermissionsValidation: ValidationChain[] = [
   body('userIds')
-    .optional()
     .isArray()
     .withMessage('userIds deve ser um array')
     .custom(value => {
@@ -122,7 +121,6 @@ export const updateZonePermissionsValidation: ValidationChain[] = [
     }),
 
   body('groupIds')
-    .optional()
     .isArray()
     .withMessage('groupIds deve ser um array')
     .custom(value => {
