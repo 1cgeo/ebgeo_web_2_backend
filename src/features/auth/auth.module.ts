@@ -25,6 +25,26 @@ const addPepper = (password: string): string => {
   return `${password}${pepper}`;
 };
 
+const isValidUUIDv4 = (uuid: string): boolean => {
+  const uuidV4Regex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  // Primeiro converte para lowercase para garantir consistência
+  const normalizedUUID = uuid.toLowerCase();
+
+  // Verifica se o formato está correto após normalização
+  if (!uuidV4Regex.test(normalizedUUID)) {
+    return false;
+  }
+
+  // Verifica se o UUID original tinha caracteres inválidos
+  if (uuid !== normalizedUUID) {
+    return false;
+  }
+
+  return true;
+};
+
 export async function login(
   req: Request<any, any, LoginRequest>,
   res: Response,
@@ -143,6 +163,8 @@ export async function logout(req: Request, res: Response) {
       httpOnly: true,
       secure: cookieConfig.secure,
       sameSite: cookieConfig.sameSite,
+      path: '/api',
+      maxAge: 0,
     });
 
     if (req.user) {
@@ -290,15 +312,10 @@ export async function validateApiKey(req: Request, res: Response) {
         path: req.path,
       },
     });
-    return res.status(401).json({ message: 'API key não fornecida' });
+    return sendJsonResponse(res, { message: 'API key não fornecida' }, 401);
   }
 
-  const isValidUUID =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      apiKey,
-    );
-
-  if (!isValidUUID) {
+  if (!isValidUUIDv4(apiKey)) {
     logger.logSecurity('Invalid API key format', {
       additionalInfo: {
         ip: req.ip,
@@ -306,7 +323,7 @@ export async function validateApiKey(req: Request, res: Response) {
         reason: 'invalid_format',
       },
     });
-    return res.status(401).json({ message: 'API key inválida' });
+    return sendJsonResponse(res, { message: 'API key inválida' }, 401);
   }
 
   try {
@@ -319,7 +336,7 @@ export async function validateApiKey(req: Request, res: Response) {
           path: req.path,
         },
       });
-      return res.status(401).json({ message: 'API key inválida' });
+      return sendJsonResponse(res, { message: 'API key inválida' }, 401);
     }
 
     logger.logAccess('API key validated successfully', {

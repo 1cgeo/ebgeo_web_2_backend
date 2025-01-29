@@ -12,7 +12,7 @@ import { envManager } from '../../common/config/environment.js';
 import { VALIDATE_API_KEY } from './auth.queries.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
-const JWT_EXPIRY = '15m';
+const JWT_EXPIRY = '60m';
 
 // Rate limiting configuration
 export const rateLimiter = rateLimit({
@@ -74,6 +74,7 @@ export const authenticateRequest = async (
           httpOnly: true,
           secure: cookieConfig.secure,
           sameSite: cookieConfig.sameSite,
+          path: '/api',
           maxAge: 15 * 60 * 1000,
         });
       }

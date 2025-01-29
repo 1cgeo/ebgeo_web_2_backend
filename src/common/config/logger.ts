@@ -54,121 +54,155 @@ export interface LogDetails {
   additionalInfo?: Record<string, any>;
 }
 
-interface CategoryConfig {
-  level: string;
-  streams: { stream: DestinationStream; level: string }[];
-}
-
 type CategoryLoggers = {
   [K in LogCategory]: Logger;
 };
 
-function validateLogConfig(): void {
-  const retention = process.env.LOG_RETENTION_DAYS
-    ? parseInt(process.env.LOG_RETENTION_DAYS)
-    : 30;
+class LoggerService {
+  private static instance: LoggerService;
+  private loggers: CategoryLoggers;
+  private baseLogger: Logger;
+  private initialized: boolean = false;
+  private streams: Record<string, DestinationStream> = {};
 
-  if (isNaN(retention) || retention < 1) {
-    throw new Error('LOG_RETENTION_DAYS deve ser um número positivo');
+  private constructor() {
+    this.loggers = {} as CategoryLoggers;
+    this.baseLogger = pino();
   }
 
-  const maxSize = process.env.LOG_MAX_SIZE || '10m';
-  const sizePattern = /^(\d+)(k|m|g)$/i;
-  if (!sizePattern.test(maxSize)) {
-    throw new Error(
-      'LOG_MAX_SIZE deve seguir o padrão: número seguido de k, m ou g (ex: 10m)',
-    );
-  }
-
-  const logDir = process.env.LOG_DIR || 'logs';
-  try {
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
+  public static getInstance(): LoggerService {
+    if (!LoggerService.instance) {
+      LoggerService.instance = new LoggerService();
     }
-  } catch {
-    throw new Error(
-      `Não foi possível criar/acessar o diretório de logs: ${logDir}`,
-    );
+    return LoggerService.instance;
   }
-}
 
-if (process.env.NODE_ENV !== 'test') {
-  validateLogConfig();
-}
+  private async validateLogConfig(): Promise<void> {
+    const retention = process.env.LOG_RETENTION_DAYS
+      ? parseInt(process.env.LOG_RETENTION_DAYS)
+      : 30;
 
-const LOG_DIR = process.env.LOG_DIR || 'logs';
-
-// Stream formatado para console
-const prettyStream = pretty({
-  colorize: true,
-  translateTime: 'SYS:standard',
-  ignore: 'pid,hostname',
-});
-
-// Configuração para cada categoria
-const categoryConfigs: Record<LogCategory, CategoryConfig> = Object.values(
-  LogCategory,
-).reduce(
-  (acc, category) => {
-    const filePath = `${LOG_DIR}/${category.toLowerCase()}.log`;
-    const fileStream = pino.destination(filePath);
-
-    const streams: { stream: DestinationStream; level: string }[] = [
-      { stream: fileStream, level: 'info' },
-    ];
-
-    // Adicionar console stream para ADMIN e SYSTEM em desenvolvimento
-    if (
-      process.env.NODE_ENV === 'development' &&
-      (category === LogCategory.ADMIN || category === LogCategory.SYSTEM)
-    ) {
-      streams.push({ stream: prettyStream, level: 'info' });
+    if (isNaN(retention) || retention < 1) {
+      throw new Error('LOG_RETENTION_DAYS deve ser um número positivo');
     }
 
-    return {
-      ...acc,
-      [category]: {
-        level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
-        streams,
+    const maxSize = process.env.LOG_MAX_SIZE || '10m';
+    const sizePattern = /^(\d+)(k|m|g)$/i;
+    if (!sizePattern.test(maxSize)) {
+      throw new Error(
+        'LOG_MAX_SIZE deve seguir o padrão: número seguido de k, m ou g (ex: 10m)',
+      );
+    }
+
+    const logDir = process.env.LOG_DIR || 'logs';
+    try {
+      if (!fs.existsSync(logDir)) {
+        await fs.promises.mkdir(logDir, { recursive: true });
+      }
+    } catch (error) {
+      throw new Error(
+        `Não foi possível criar/acessar o diretório de logs: ${logDir}: ${error}`,
+      );
+    }
+  }
+
+  public async init(): Promise<void> {
+    if (this.initialized) return;
+
+    if (process.env.NODE_ENV !== 'test') {
+      await this.validateLogConfig();
+    }
+
+    const LOG_DIR = process.env.LOG_DIR || 'logs';
+
+    // Configuração base
+    const loggerConfig: LoggerOptions = {
+      level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
+      base: {
+        env: process.env.NODE_ENV,
+        service: 'ebgeo-service',
       },
+      timestamp: pino.stdTimeFunctions.isoTime,
     };
-  },
-  {} as Record<LogCategory, CategoryConfig>,
-);
 
-// Configuração do logger principal
-const loggerConfig: LoggerOptions = {
-  level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
-  base: {
-    env: process.env.NODE_ENV,
-    service: 'ebgeo-service',
-  },
-};
+    // Stream formatado para console
+    const prettyStream = pretty({
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
+      sync: true,
+    });
 
-// Criar um logger para cada categoria
-const loggers: CategoryLoggers = Object.entries(categoryConfigs).reduce(
-  (acc, [category, config]) => {
-    return {
-      ...acc,
-      [category as LogCategory]: pino(
+    // Inicializar streams para cada categoria
+    for (const category of Object.values(LogCategory)) {
+      const filePath = `${LOG_DIR}/${category.toLowerCase()}.log`;
+      const fileStream = pino.destination({
+        dest: filePath,
+        sync: true,
+        mkdir: true,
+      });
+
+      this.streams[category] = fileStream;
+
+      const streams: { stream: DestinationStream; level: string }[] = [
+        { stream: fileStream, level: 'info' },
+      ];
+
+      if (
+        process.env.NODE_ENV === 'development' &&
+        (category === LogCategory.ADMIN || category === LogCategory.SYSTEM)
+      ) {
+        streams.push({ stream: prettyStream, level: 'info' });
+      }
+
+      this.loggers[category] = pino(
         {
           ...loggerConfig,
-          level: config.level,
+          level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
         },
-        multistream(config.streams),
-      ),
-    };
-  },
-  {} as CategoryLoggers,
-);
+        multistream(streams),
+      );
+    }
 
-// Logger base
-const baseLogger = pino(loggerConfig);
-const logger = pinoCaller(baseLogger);
+    this.baseLogger = pinoCaller(pino(loggerConfig));
+    this.initialized = true;
+  }
 
-// Interface estendida do logger para logging estruturado
-const structuredLogger = {
-  logError(error: Error | string, details: LogDetails) {
+  public async close(): Promise<void> {
+    if (!this.initialized) return;
+
+    // Fechar todos os streams
+    const closePromises = Object.values(this.streams).map(stream => {
+      return new Promise<void>(resolve => {
+        if ('flushSync' in stream) {
+          try {
+            (stream as any).flushSync();
+          } catch {
+            // Ignorar erros de flush
+          }
+        }
+        // Verificar se o stream tem o método end com a tipagem correta
+        const hasEndMethod = (
+          s: any,
+        ): s is { end: (cb: () => void) => void } => {
+          return typeof s?.end === 'function';
+        };
+
+        if (hasEndMethod(stream)) {
+          stream.end(() => resolve());
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    await Promise.all(closePromises);
+    this.initialized = false;
+  }
+
+  public logError(error: Error | string, details: LogDetails): void {
+    if (!this.initialized) return;
+
     const errorMessage = error instanceof Error ? error.message : error;
     const errorStack = error instanceof Error ? error.stack : undefined;
 
@@ -176,7 +210,7 @@ const structuredLogger = {
     Error.captureStackTrace(err, this.logError);
     const callerStack = err.stack?.split('\n')[1];
 
-    const categoryLogger = loggers[details.category];
+    const categoryLogger = this.loggers[details.category];
     if (categoryLogger) {
       categoryLogger.error({
         msg: errorMessage,
@@ -186,54 +220,66 @@ const structuredLogger = {
       });
     }
 
-    // Também loga no logger principal
-    logger.error({
+    this.baseLogger.error({
       msg: errorMessage,
       errorStack,
       callerStack,
       ...details,
     });
-  },
+  }
 
-  logMetric(name: string, value: number, details: Partial<LogDetails>) {
-    if (process.env.NODE_ENV === 'test') return;
+  public logMetric(
+    name: string,
+    value: number,
+    details: Partial<LogDetails>,
+  ): void {
+    if (!this.initialized || process.env.NODE_ENV === 'test') return;
 
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
 
-    const categoryLogger = loggers[LogCategory.PERFORMANCE];
+    const categoryLogger = this.loggers[LogCategory.PERFORMANCE];
     if (categoryLogger) {
       categoryLogger.info({
         msg: 'Metric recorded',
         metric: name,
         value,
+        category: LogCategory.PERFORMANCE,
         ...details,
       });
     }
-  },
+  }
 
-  logAuth(message: string, details: Partial<LogDetails>) {
-    const categoryLogger = loggers[LogCategory.AUTH];
+  public logAuth(message: string, details: Partial<LogDetails>): void {
+    if (!this.initialized) return;
+
+    const categoryLogger = this.loggers[LogCategory.AUTH];
     if (categoryLogger) {
       categoryLogger.info({
         msg: message,
+        category: LogCategory.AUTH,
         ...details,
       });
     }
-  },
+  }
 
-  logSecurity(message: string, details: Partial<LogDetails>) {
-    const categoryLogger = loggers[LogCategory.SECURITY];
+  public logSecurity(message: string, details: Partial<LogDetails>): void {
+    if (!this.initialized) return;
+
+    const categoryLogger = this.loggers[LogCategory.SECURITY];
     if (categoryLogger) {
       categoryLogger.warn({
         msg: message,
+        category: LogCategory.SECURITY,
         ...details,
       });
     }
-  },
+  }
 
-  logAccess(message: string, details: Partial<LogDetails>) {
+  public logAccess(message: string, details: Partial<LogDetails>): void {
+    if (!this.initialized) return;
+
     if (
       details.additionalInfo?.path &&
       shouldIgnorePath(details.additionalInfo.path)
@@ -241,30 +287,56 @@ const structuredLogger = {
       return;
     }
 
-    const categoryLogger = loggers[LogCategory.ACCESS];
+    const categoryLogger = this.loggers[LogCategory.ACCESS];
     if (categoryLogger) {
       categoryLogger.info({
         msg: message,
+        category: LogCategory.ACCESS,
         ...details,
       });
     }
-  },
+  }
 
-  logPerformance(message: string, details: Partial<LogDetails>) {
-    if (process.env.NODE_ENV === 'test') return;
+  public logPerformance(message: string, details: Partial<LogDetails>): void {
+    if (!this.initialized || process.env.NODE_ENV === 'test') return;
 
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
 
-    const categoryLogger = loggers[LogCategory.PERFORMANCE];
+    const categoryLogger = this.loggers[LogCategory.PERFORMANCE];
     if (categoryLogger) {
       categoryLogger.info({
         msg: message,
+        category: LogCategory.PERFORMANCE,
         ...details,
       });
     }
-  },
-};
+  }
 
-export default { ...logger, ...structuredLogger };
+  public getBaseLogger(): Logger {
+    return this.baseLogger;
+  }
+}
+
+// Criar instância única
+const loggerService = LoggerService.getInstance();
+
+// Exportar interface pública
+export default {
+  ...loggerService.getBaseLogger(),
+  init: () => loggerService.init(),
+  close: () => loggerService.close(),
+  logError: (error: Error | string, details: LogDetails) =>
+    loggerService.logError(error, details),
+  logMetric: (name: string, value: number, details: Partial<LogDetails>) =>
+    loggerService.logMetric(name, value, details),
+  logAuth: (message: string, details: Partial<LogDetails>) =>
+    loggerService.logAuth(message, details),
+  logSecurity: (message: string, details: Partial<LogDetails>) =>
+    loggerService.logSecurity(message, details),
+  logAccess: (message: string, details: Partial<LogDetails>) =>
+    loggerService.logAccess(message, details),
+  logPerformance: (message: string, details: Partial<LogDetails>) =>
+    loggerService.logPerformance(message, details),
+};

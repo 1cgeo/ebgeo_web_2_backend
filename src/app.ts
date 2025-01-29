@@ -26,10 +26,7 @@ import { ApiError } from './common/errors/apiError.js';
 import { db } from './common/config/database.js';
 import logger, { LogCategory } from './common/config/logger.js';
 
-import {
-  sanitizeInputs,
-  sanitizeGeoCoordinates,
-} from './common/middleware/inputSanitizer.js';
+import { sanitizeGeoCoordinates } from './common/middleware/inputSanitizer.js';
 
 const app = express();
 
@@ -45,8 +42,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Logging e métricas
 app.use(requestLogger);
 
-// Sanitização
-app.use(sanitizeInputs);
 app.use('/api/geographic', sanitizeGeoCoordinates);
 app.use('/api/identify', sanitizeGeoCoordinates);
 
@@ -91,11 +86,15 @@ app.get('/health', async (_req: Request, res: Response) => {
       },
     });
 
-    res.status(503).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      database: 'disconnected',
-    });
+    res
+      .status(503)
+      .setHeader('Content-Type', 'application/json')
+      .setHeader('Cache-Control', 'no-store')
+      .json({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+      });
   }
 });
 

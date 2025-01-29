@@ -13,6 +13,8 @@ import {
 import { validateEnvVariables } from './common/config/envValidation.js';
 import { envManager } from './common/config/environment.js';
 
+await logger.init();
+
 const numCPUs = os.cpus().length;
 const MAX_WORKERS = process.env.MAX_WORKERS
   ? parseInt(process.env.MAX_WORKERS)
@@ -85,6 +87,9 @@ async function startServer() {
           timestamp: new Date().toISOString(),
         },
       });
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await logger.close();
 
       server.close(async () => {
         try {

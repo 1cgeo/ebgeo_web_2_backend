@@ -16,6 +16,16 @@ import {
 import * as queries from './admin.queries.js';
 import { sendJsonResponse } from '../../common/helpers/response.js';
 
+const MIN_DISK_SPACE_MB = 500; // Mínimo de 500MB de espaço livre requerido
+const DISK_WARNING_THRESHOLD = 0.85; // 85% de uso do disco gera warning
+
+interface DiskSpace {
+  available: number;
+  total: number;
+  used: number;
+  usedPercentage: number;
+}
+
 // Health Check
 export async function getSystemHealth(_req: Request, res: Response) {
   try {
@@ -71,6 +81,16 @@ export async function getSystemHealth(_req: Request, res: Response) {
   }
 }
 
+export function calculateCpuUsage(): number {
+  const cpus = os.cpus();
+  const loadAvg = os.loadavg()[0];
+
+  // Calcula o uso real da CPU como porcentagem, limitado a 100%
+  const usage = Math.min((loadAvg / cpus.length) * 100, 100);
+
+  return Number(usage.toFixed(2)); // Retorna com 2 casas decimais
+}
+
 // System Metrics
 export async function getSystemMetrics(_req: Request, res: Response) {
   try {
@@ -82,7 +102,6 @@ export async function getSystemMetrics(_req: Request, res: Response) {
         db.one(queries.GET_GROUP_METRICS),
       ]);
 
-    const cpus = os.cpus();
     const metrics: SystemMetrics = {
       system: {
         uptime: process.uptime(),
@@ -94,7 +113,7 @@ export async function getSystemMetrics(_req: Request, res: Response) {
           free: os.freemem(),
         },
         cpu: {
-          usage: (os.loadavg()[0] / cpus.length) * 100,
+          usage: calculateCpuUsage(),
           loadAvg: os.loadavg(),
         },
       },
@@ -204,19 +223,112 @@ async function checkDatabaseHealth(): Promise<ServiceHealth> {
   }
 }
 
-async function checkFileSystemHealth(): Promise<ServiceHealth> {
+// Função para verificar espaço em disco
+async function checkDiskSpace(path: string): Promise<DiskSpace> {
   try {
-    const logDir = process.env.LOG_DIR || 'logs';
+    // No Windows, pegamos informação do drive onde o path está
+    // No Unix/Linux, pegamos informação da partição onde o path está
+    const stats = await fs.statfs(path);
+
+    const total = stats.bsize * stats.blocks;
+    const available = stats.bsize * stats.bfree;
+    const used = total - available;
+    const usedPercentage = (used / total) * 100;
+
+    return {
+      available,
+      total,
+      used,
+      usedPercentage,
+    };
+  } catch (error) {
+    throw new Error(`Failed to check disk space: ${error}`);
+  }
+}
+
+// Função para testar permissões de arquivo
+async function testFilePermissions(dir: string): Promise<boolean> {
+  const testFile = `${dir}/test_permissions_${Date.now()}.tmp`;
+  try {
+    // Tenta criar um arquivo temporário
+    await fs.writeFile(testFile, 'test');
+    // Tenta ler o arquivo
+    await fs.readFile(testFile);
+    // Limpa o arquivo de teste
+    await fs.unlink(testFile);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function checkFileSystemHealth(
+  logDir: string = 'logs',
+): Promise<ServiceHealth> {
+  try {
+    // Verifica se o diretório existe e tem permissões básicas
     await fs.access(logDir, fs.constants.R_OK | fs.constants.W_OK);
+
+    // Verifica permissões de arquivo
+    const hasFilePermissions = await testFilePermissions(logDir);
+    if (!hasFilePermissions) {
+      return {
+        status: 'unhealthy',
+        details: {
+          error: 'Insufficient file permissions',
+          canWrite: false,
+          canRead: false,
+        },
+        lastCheck: new Date(),
+      };
+    }
+
+    // Verifica espaço em disco
+    const diskSpace = await checkDiskSpace(logDir);
+    const availableMB = diskSpace.available / (1024 * 1024);
+
+    // Determina o status baseado no espaço disponível
+    if (availableMB < MIN_DISK_SPACE_MB) {
+      return {
+        status: 'unhealthy',
+        details: {
+          error: 'Insufficient disk space',
+          availableMB,
+          diskUsagePercentage: diskSpace.usedPercentage,
+        },
+        lastCheck: new Date(),
+      };
+    }
+
+    if (diskSpace.usedPercentage > DISK_WARNING_THRESHOLD * 100) {
+      return {
+        status: 'degraded',
+        details: {
+          warning: 'High disk usage',
+          availableMB,
+          diskUsagePercentage: diskSpace.usedPercentage,
+        },
+        lastCheck: new Date(),
+      };
+    }
 
     return {
       status: 'healthy',
+      details: {
+        availableMB,
+        diskUsagePercentage: diskSpace.usedPercentage,
+        canWrite: true,
+        canRead: true,
+      },
       lastCheck: new Date(),
     };
-  } catch {
+  } catch (error) {
     return {
       status: 'unhealthy',
-      details: { error: 'File system access failed' },
+      details: {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        path: logDir,
+      },
       lastCheck: new Date(),
     };
   }

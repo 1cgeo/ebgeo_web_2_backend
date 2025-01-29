@@ -52,9 +52,13 @@ export const errorHandler = (
       : err.message,
   );
 
-  res.status(500).json({
-    status: 'error',
-    message: internalError.message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
-  });
+  res
+    .status(500)
+    .setHeader('Content-Type', 'application/json')
+    .setHeader('Cache-Control', 'no-store')
+    .json({
+      status: 'error',
+      message: internalError.message,
+      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    });
 };
