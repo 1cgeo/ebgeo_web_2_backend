@@ -127,6 +127,7 @@ export async function createUser(
     nome_completo,
     nome_guerra,
     organizacao_militar,
+    posto_graduacao,
     groupIds,
   } = req.body;
 
@@ -177,6 +178,7 @@ export async function createUser(
         nome_completo || null,
         nome_guerra || null,
         organizacao_militar || null,
+        posto_graduacao || null,
         hashedPassword,
         role,
         req.user?.userId,
@@ -249,6 +251,7 @@ export async function updateUser(
     nome_completo,
     nome_guerra,
     organizacao_militar,
+    posto_graduacao,
   } = req.body;
 
   try {
@@ -282,6 +285,7 @@ export async function updateUser(
         nome_completo,
         nome_guerra,
         organizacao_militar,
+        posto_graduacao,
         role,
         isActive,
       ]);
@@ -322,6 +326,13 @@ export async function updateUser(
                   ? {
                       old: user.organizacao_militar,
                       new: organizacao_militar,
+                    }
+                  : undefined,
+              posto_graduacao:
+                posto_graduacao !== undefined
+                  ? {
+                      old: user.posto_graduacao,
+                      new: posto_graduacao,
                     }
                   : undefined,
               role:
@@ -525,7 +536,13 @@ export async function updateProfile(
   }
   const userId = req.user.userId;
 
-  const { email, nome_completo, nome_guerra, organizacao_militar } = req.body;
+  const {
+    email,
+    nome_completo,
+    nome_guerra,
+    organizacao_militar,
+    posto_graduacao,
+  } = req.body;
 
   try {
     await db.tx(async t => {
@@ -584,6 +601,13 @@ export async function updateProfile(
                       new: organizacao_militar,
                     }
                   : undefined,
+              posto_graduacao:
+                posto_graduacao !== undefined
+                  ? {
+                      old: user.posto_graduacao,
+                      new: posto_graduacao,
+                    }
+                  : undefined,
             },
             changedBy: 'self',
           },
@@ -597,6 +621,7 @@ export async function updateProfile(
         nome_completo,
         nome_guerra,
         organizacao_militar,
+        posto_graduacao,
         null, // role não pode ser alterado
         null, // isActive não pode ser alterado
       ]);

@@ -1,5 +1,27 @@
 import { UserRole } from '../auth/auth.types.js';
 
+export enum PostoGraduacao {
+  CIV = 'Civ',
+  PCTD = 'PCTD',
+  SD_EV = 'Sd EV',
+  SD_EP = 'Sd EP',
+  CB = 'Cb',
+  TER_SGT = '3º Sgt',
+  SEG_SGT = '2º Sgt',
+  PRI_SGT = '1º Sgt',
+  ST = 'ST',
+  ASP = 'Asp',
+  SEG_TEN = '2º Ten',
+  PRI_TEN = '1º Ten',
+  CAP = 'Cap',
+  MAJ = 'Maj',
+  TC = 'TC',
+  CEL = 'Cel',
+  GEN_BDA = 'Gen Bda',
+  GEN_DIV = 'Gen Div',
+  GEN_EX = 'Gen Ex',
+}
+
 export interface User {
   id: string;
   username: string;
@@ -7,6 +29,7 @@ export interface User {
   nome_completo?: string;
   nome_guerra?: string;
   organizacao_militar?: string;
+  posto_graduacao?: PostoGraduacao;
   role: UserRole;
   isActive: boolean;
   lastLogin?: Date;
@@ -64,6 +87,7 @@ export interface CreateUserDTO {
   nome_completo?: string;
   nome_guerra?: string;
   organizacao_militar?: string;
+  posto_graduacao?: PostoGraduacao;
   password: string;
   role: UserRole;
   groupIds?: string[];
@@ -73,6 +97,7 @@ export interface UpdateUserDTO {
   nome_completo?: string;
   nome_guerra?: string;
   organizacao_militar?: string;
+  posto_graduacao?: PostoGraduacao;
   role?: UserRole;
   isActive?: boolean;
 }
@@ -87,6 +112,7 @@ export interface UpdateProfileDTO {
   nome_completo?: string;
   nome_guerra?: string;
   organizacao_militar?: string;
+  posto_graduacao?: PostoGraduacao;
 }
 
 // Query params para listagem

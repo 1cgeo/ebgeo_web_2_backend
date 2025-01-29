@@ -45,7 +45,7 @@
  *         name: sort
  *         schema:
  *           type: string
- *           enum: [username, email, nome_completo, nome_guerra, organizacao_militar, role, created_at, last_login, group_count]
+ *           enum: [username, email, nome_completo, nome_guerra, organizacao_militar, posto_graduacao, role, created_at, last_login, group_count]
  *           default: username
  *       - in: query
  *         name: order

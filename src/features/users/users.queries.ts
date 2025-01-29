@@ -155,6 +155,7 @@ export const CREATE_USER = `
     nome_completo,
     nome_guerra,
     organizacao_militar, 
+    posto_graduacao, 
     password, 
     role, 
     is_active,
@@ -175,11 +176,12 @@ export const UPDATE_USER = `
     nome_completo = COALESCE($3, nome_completo),
     nome_guerra = COALESCE($4, nome_guerra),
     organizacao_militar = COALESCE($5, organizacao_militar),
+      posto_graduacao = COALESCE($8, posto_graduacao),
     role = COALESCE($6, role),
     is_active = COALESCE($7, is_active),
     updated_at = CURRENT_TIMESTAMP
   WHERE id = $1
-  RETURNING id, username, email, nome_completo, nome_guerra, organizacao_militar, role, is_active;
+  RETURNING id, username, email, nome_completo, nome_guerra, organizacao_militar, posto_graduacao, role, is_active;
 `;
 
 export const UPDATE_PASSWORD = `

@@ -1,5 +1,6 @@
 import { body, query, param } from 'express-validator';
 import { UserRole } from '../auth/auth.types.js';
+import { PostoGraduacao } from './users.types.js';
 
 export const listUsersValidation = [
   query('page')
@@ -86,6 +87,12 @@ export const createUserValidation = [
     .isLength({ max: 255 })
     .withMessage('Organização militar deve ter no máximo 255 caracteres'),
 
+  body('posto_graduacao')
+    .notEmpty()
+    .withMessage('Posto/Graduação é obrigatório')
+    .isIn(Object.values(PostoGraduacao))
+    .withMessage('Posto/Graduação inválido'),
+
   body('password')
     .trim()
     .notEmpty()
@@ -158,6 +165,11 @@ export const updateUserValidation = [
     .isLength({ max: 255 })
     .withMessage('Organização militar deve ter no máximo 255 caracteres'),
 
+  body('posto_graduacao')
+    .optional()
+    .isIn(Object.values(PostoGraduacao))
+    .withMessage('Posto/Graduação inválido'),
+
   body('role')
     .optional()
     .isIn(Object.values(UserRole))
@@ -224,4 +236,9 @@ export const updateProfileValidation = [
     .trim()
     .isLength({ max: 255 })
     .withMessage('Organização militar deve ter no máximo 255 caracteres'),
+
+  body('posto_graduacao')
+    .optional()
+    .isIn(Object.values(PostoGraduacao))
+    .withMessage('Posto/Graduação inválido'),
 ];

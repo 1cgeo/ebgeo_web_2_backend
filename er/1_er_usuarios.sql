@@ -6,6 +6,12 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE SCHEMA IF NOT EXISTS ng;
 
+CREATE TYPE ng.posto_graduacao AS ENUM (
+    'Civ', 'PCTD', 'Sd EV', 'Sd EP', 'Cb', '3º Sgt', '2º Sgt', '1º Sgt',
+    'ST', 'Asp', '2º Ten', '1º Ten', 'Cap', 'Maj', 'TC', 'Cel',
+    'Gen Bda', 'Gen Div', 'Gen Ex'
+);
+
 CREATE TABLE ng.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(50) UNIQUE NOT NULL,
@@ -14,6 +20,7 @@ CREATE TABLE ng.users (
     nome_completo VARCHAR(255),
     nome_guerra VARCHAR(50),
     organizacao_militar VARCHAR(255),
+    posto_graduacao ng.posto_graduacao,
     role VARCHAR(20) NOT NULL,
     api_key UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
     api_key_created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -7,6 +7,32 @@ export const userSchemas: Record<string, OpenAPISchema> = {
     description: 'Papel do usuário no sistema',
   },
 
+  PostoGraduacao: {
+    type: 'string',
+    enum: [
+      'Civ',
+      'PCTD',
+      'Sd EV',
+      'Sd EP',
+      'Cb',
+      '3º Sgt',
+      '2º Sgt',
+      '1º Sgt',
+      'ST',
+      'Asp',
+      '2º Ten',
+      '1º Ten',
+      'Cap',
+      'Maj',
+      'TC',
+      'Cel',
+      'Gen Bda',
+      'Gen Div',
+      'Gen Ex',
+    ],
+    description: 'Posto ou Graduação do usuário',
+  },
+
   BaseUser: {
     type: 'object',
     required: ['id', 'username', 'email', 'role', 'isActive'],
@@ -44,6 +70,9 @@ export const userSchemas: Record<string, OpenAPISchema> = {
         description: 'Organização militar do usuário',
         example: '1º BIS',
         maxLength: 255,
+      },
+      posto_graduacao: {
+        $ref: '#/components/schemas/PostoGraduacao',
       },
       role: {
         $ref: '#/components/schemas/Role',
@@ -205,6 +234,9 @@ export const userSchemas: Record<string, OpenAPISchema> = {
         maxLength: 255,
         description: 'Organização militar do usuário',
       },
+      posto_graduacao: {
+        $ref: '#/components/schemas/PostoGraduacao',
+      },
       password: {
         type: 'string',
         format: 'password',
@@ -246,6 +278,9 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       organizacao_militar: {
         type: 'string',
         maxLength: 255,
+      },
+      posto_graduacao: {
+        $ref: '#/components/schemas/PostoGraduacao',
       },
       role: {
         $ref: '#/components/schemas/Role',
@@ -293,6 +328,9 @@ export const userSchemas: Record<string, OpenAPISchema> = {
       organizacao_militar: {
         type: 'string',
         maxLength: 255,
+      },
+      posto_graduacao: {
+        $ref: '#/components/schemas/PostoGraduacao',
       },
     },
   },
