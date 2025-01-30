@@ -211,6 +211,7 @@ class LoggerService {
     const callerStack = err.stack?.split('\n')[1];
 
     const categoryLogger = this.loggers[details.category];
+
     if (categoryLogger) {
       categoryLogger.error({
         msg: errorMessage,
@@ -233,7 +234,7 @@ class LoggerService {
     value: number,
     details: Partial<LogDetails>,
   ): void {
-    if (!this.initialized || process.env.NODE_ENV === 'test') return;
+    if (!this.initialized) return;
 
     if (details.path && shouldIgnorePath(details.path)) {
       return;
@@ -298,8 +299,6 @@ class LoggerService {
   }
 
   public logPerformance(message: string, details: Partial<LogDetails>): void {
-    if (!this.initialized || process.env.NODE_ENV === 'test') return;
-
     if (details.path && shouldIgnorePath(details.path)) {
       return;
     }
