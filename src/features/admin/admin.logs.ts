@@ -170,9 +170,9 @@ export async function analyzeRecentLogs(): Promise<{
   try {
     // Ler apenas os arquivos relevantes para as métricas que precisamos
     const filesToAnalyze = [
-      path.join(logDir, 'error.log'), // Para erros
-      path.join(logDir, 'system.log'), // Para erros e warnings
-      path.join(logDir, 'api.log'), // Para total de requests
+      path.join(logDir, 'security.log'),
+      path.join(logDir, 'system.log'),
+      path.join(logDir, 'api.log'),
     ];
 
     const existingFiles = await Promise.all(

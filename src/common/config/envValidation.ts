@@ -1,4 +1,3 @@
-// src/common/config/envValidation.ts
 import os from 'os';
 import { Environment } from './environment.js';
 
